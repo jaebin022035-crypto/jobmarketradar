@@ -1,0 +1,44 @@
+# ============================================================
+# ArgoCD Application — JobMarketRadar GitOps 동기화
+# ------------------------------------------------------------
+# 진실의 소스(Git) → 클러스터(jobradar ns) 단방향 동기화.
+#
+# 동기화 범위: deploy/*.yaml (raw YAML 디렉토리, Kustomize 불필요)
+# 정책: auto-sync + self-heal(Git 이 항상 승리) + prune(삭제된 리소스 제거)
+#
+# Secret 관리:
+#   DHS_API_KEY 가 담긴 Secret(jobradar-secret) 은 Git 에 평문으로 두지 않고
+#   수동(kubectl create secret) 으로 관리. 따라서 ArgoCD 동기화 범위에서 제외하고
+#   (이 디렉토리에 Secret 매니페스트 없음), ignoreDifferences 로 data 차이를 무시.
+#   → GitOps 는 앱 리소스만 담당, Secret 은 별도 관리(권장 패턴).
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jobradar
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io   # Application 삭제 시 하위 리소스 함께 정리
+spec:
+  project: default
+  source:
+    repoURL: https://std-gitea.kopoctc.kr/kopo13/web.git
+    targetRevision: main
+    path: deploy                    # 매니페스트 디렉토리
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jobradar
+  syncPolicy:
+    automated:
+      prune: true                   # Git 에서 제거된 리소스는 클러스터에서도 삭제
+      selfHeal: true                # 수동 변경(drift) 을 Git 상태로 되돌림
+    syncOptions:
+      - CreateNamespace=true        # ns 없으면 자동 생성
+      - RespectIgnoreDifferences=true
+  # 수동 관리되는 Secret 의 data 는 ArgoCD 가 건드리지 않게 무시.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: jobradar-secret
+      jsonPointers:
+        - /data

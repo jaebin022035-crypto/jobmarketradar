@@ -1,0 +1,115 @@
+# ============================================================
+# Deployment + Service — JobMarketRadar 단일 Node 서버
+# ------------------------------------------------------------
+# 아키텍처: 정적 파일(public/) + /api/* 집계 API + cron 자동수집이
+#          모두 한 Express 프로세스(server.js)에서 동작.
+# DB: SQLite(data/jobmarket.db) → RWO PVC, replicas=1 고정.
+#
+# - initContainer(init-db): PVC(/app/data)가 비어있으면
+#   이미지에 구운 시드 DB(/app/data-seed/jobmarket.db)를 복사.
+#   → 기존 수집 데이터(580건)가 마이그레이션됨.
+#   → 이미 데이터가 있으면 skip(재배포 시 초기화 방지).
+# - 컨테이너 env:
+#     TZ=Asia/Seoul        → cron(0 9,21 * * *)이 KST로 동작
+#     DHS_API_KEY          → Secret jobradar-secret (수집 API 인증키)
+#     PORT=3000
+# - 준비/생존 점검: GET /api/summary (docker-compose healthcheck와 동일)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobradar
+  namespace: jobradar
+  labels:
+    app: jobradar
+spec:
+  replicas: 1                       # SQLite(RWO) 단일 쓰기 → 다중 복제 금지
+  strategy:
+    type: Recreate                  # RWO PVC 사용 시 RollingUpdate 보다 안전
+  selector:
+    matchLabels:
+      app: jobradar
+  template:
+    metadata:
+      labels:
+        app: jobradar
+    spec:
+      # ----- 최초 1회: PVC가 비어있으면 마이그레이션 시드 DB 주입 -----
+      initContainers:
+        - name: init-db
+          image: std-harbor.kopoctc.kr/kopo13/jobradar:latest
+          command:
+            - sh
+            - -c
+            - |
+              # /app/data/jobmarket.db 가 없거나 빈 경우에만 시드 복사
+              if [ ! -s /app/data/jobmarket.db ]; then
+                echo "[init-db] /app/data/jobmarket.db 없음 → 마이그레이션 시드 복사"
+                cp /app/data-seed/jobmarket.db /app/data/jobmarket.db
+                echo "[init-db] 완료 (postings=580, recruits=785 마이그레이션)"
+              else
+                echo "[init-db] /app/data/jobmarket.db 이미 존재 → 시드 건너뜀 (영속 데이터 유지)"
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      containers:
+        - name: jobradar
+          image: std-harbor.kopoctc.kr/kopo13/jobradar:latest   # Harbor (kopo13 public 프로젝트)
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: TZ
+              value: Asia/Seoul
+            - name: PORT
+              value: "3000"
+            - name: DHS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jobradar-secret
+                  key: DHS_API_KEY
+                  optional: false           # Secret 없으면 Pod 기동 실패 (의도적)
+          # ----- 준비/생존 점검: 핵심 API -----
+          readinessProbe:
+            httpGet:
+              path: /api/summary
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/summary
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /app/data          # SQLite 영속화 (db.js 의 DB_PATH = data/jobmarket.db)
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: jobradar-data
+---
+# ---------- Service (ClusterIP) ----------
+# Ingress(traefik)가 이 Service 로 트래픽 전달.
+# 정적파일(/) 과 API(/api/*) 모두 이 단일 서비스가 처리.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jobradar
+  namespace: jobradar
+spec:
+  selector:
+    app: jobradar
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP

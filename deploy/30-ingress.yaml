@@ -1,0 +1,35 @@
+# ============================================================
+# Ingress — 외부 노출 (사내망 *.std.kopoctc.kr 와일드카드 도메인)
+# ------------------------------------------------------------
+# 이 클러스터의 외부 노출 정석 패턴 (기존 서비스 movie/jenkins/freewifi 와 동일):
+#   - 도메인: kopo13-<이름>.std.kopoctc.kr  (와일드카드 DNS → 192.168.26.195)
+#   - IngressClass: traefik   (호스트 k3s 의 traefik 이 진짜 진입점,
+#                              vcluster 가 동기화하여 사용)
+#   - jobradar ns 에 배포    (백엔드 Service 와 같은 ns — 핵심, 다르면 404)
+#
+# 동작 흐름:
+#   인터넷/사내망 → kopo13-jobradar.std.kopoctc.kr (192.168.26.195:443)
+#     → traefik(Ingress) → jobradar Service(3000) → Node 서버
+#       ├ /        → public/ 정적 파일 (대시보드 UI)
+#       └ /api/*   → 집계 API
+#
+# ※ TLS(https) / http→https 리다이렉트: traefik 단에서 자동 처리 (기존 서비스와 동일).
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kopo13-jobradar-ingress
+  namespace: jobradar
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: kopo13-jobradar.std.kopoctc.kr   # 외부 접속 도메인 (와일드카드 자동 해석)
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jobradar
+                port:
+                  number: 3000

@@ -1,0 +1,6 @@
+*.db
+*.db-*
+.env
+server.log
+server.pid
+server.port
