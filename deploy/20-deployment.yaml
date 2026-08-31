@@ -55,10 +55,11 @@ spec:
               mountPath: /app/data
           # ★ ArgoCD cluster cache 호환: requests 명시 필수
           # (nil requests 컨테이너가 있으면 ArgoCD gitops-engine Pod 집계 중 nil map 패닉)
+          # ★ vcluster 호스트 제한: 컨테이너별 최소 memory request 32Mi
           resources:
             requests:
               cpu: 10m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               cpu: 100m
               memory: 64Mi
