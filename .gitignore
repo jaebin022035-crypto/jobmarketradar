@@ -1,6 +1,36 @@
-*.db
-*.db-*
+# ===== 민감 정보 (절대 커밋 금지) =====
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+.git-credentials
+
+# ===== DB / 데이터 (PVC·로컬 수집 데이터) =====
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.db.bak
+docker-data-seed/
+
+# ===== Node =====
+node_modules/
+npm-debug.log*
+
+# ===== 런타임 산출물 =====
 server.log
 server.pid
 server.port
+*.log
+
+# ===== NFS 스파이 파일 (삭제 시도 시 SVCBUSY 남는 잔재) =====
+.nfs*
+
+# ===== Claude Code 세션/설정 (개인 작업환경) =====
+.claude/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db

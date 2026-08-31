@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobMarketRadar · 채용시장 트렌드</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="style.css?v=20260831_3" />
+</head>
+<body>
+  <div class="app">
+    <!-- 헤더 -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </div>
+        <div>
+          <!-- 수집 상태 (제목 위 작은 표시) -->
+          <div class="collect-status">
+            <span class="dot" id="status-dot" data-state="loading"></span>
+            <span id="last-run" class="last-run">불러오는 중…</span>
+          </div>
+          <h1>JobMarketRadar</h1>
+          <p class="subtitle">국민취업지원제도 채용정보 기반 · 실시간 채용시장 트렌드</p>
+        </div>
+      </div>
+      <!-- Step 8: 로그인 영역 (header-meta 자리 — 상태 캡슐은 제목 위로 이동) -->
+      <div class="header-auth">
+        <button id="btn-login" class="auth-btn">🔑 로그인</button>
+        <div id="auth-user" class="auth-user hidden">
+          <span class="auth-user-name" id="auth-user-name"></span>
+          <button id="btn-logout" class="auth-logout" title="로그아웃">로그아웃</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 내비게이션 (Step 6) -->
+    <nav class="nav-bar" aria-label="주요 메뉴">
+      <button class="nav-tab active" data-view="dashboard">📊 대시보드</button>
+      <button class="nav-tab" data-view="insights">💡 인사이트</button>
+      <button class="nav-tab" data-view="custom">🎯 맞춤 공고</button>
+      <button class="nav-tab" data-view="resume">📝 이력서 관리</button>
+    </nav>
+
+    <!-- ============ 뷰 1: 대시보드 ============ -->
+    <main data-view="dashboard" class="view active">
+      <!-- 요약 카드 -->
+      <section class="summary-grid" id="summary" aria-label="요약">
+        <article class="card stat">
+          <span class="stat-label">총 채용공고</span>
+          <span class="stat-value" id="stat-postings">—</span>
+          <span class="stat-foot">수집된 공고</span>
+        </article>
+        <article class="card stat">
+          <span class="stat-label">모집직무</span>
+          <span class="stat-value" id="stat-recruits">—</span>
+          <span class="stat-foot">1공고 다직무 포함</span>
+        </article>
+        <article class="card stat">
+          <span class="stat-label">신입 가능</span>
+          <span class="stat-value" id="stat-new">—</span>
+          <span class="stat-foot">모집직무 기준</span>
+        </article>
+        <article class="card stat">
+          <span class="stat-label">경력 대상</span>
+          <span class="stat-value" id="stat-exp">—</span>
+          <span class="stat-foot">모집직무 기준</span>
+        </article>
+      </section>
+
+      <!-- 필터 -->
+      <section class="card filter-bar" aria-label="필터">
+        <div class="filter-group">
+          <label for="f-period">기간</label>
+          <select id="f-period">
+            <option value="week">최근 7일</option>
+            <option value="month">최근 30일</option>
+            <option value="all" selected>전체</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="f-company">기업구분</label>
+          <select id="f-company">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="f-region">지역</label>
+          <select id="f-region">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="f-category">직종</label>
+          <select id="f-category">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="filter-group filter-toggle">
+          <input type="checkbox" id="f-it" />
+          <label for="f-it">IT·개발 직군만</label>
+        </div>
+      </section>
+
+      <!-- 차트 영역 -->
+      <section class="charts-grid" aria-label="트렌드 차트">
+        <article class="card chart-card">
+          <div class="card-head">
+            <h2>직종별 채용 공고</h2>
+            <span class="card-sub">상위 10개 직종</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-category"></canvas></div>
+          <p class="empty-msg" hidden></p>
+        </article>
+
+        <article class="card chart-card">
+          <div class="card-head">
+            <h2>지역별 분포</h2>
+            <span class="card-sub" id="region-sub">시·도 기준</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-region"></canvas></div>
+          <p class="empty-msg" hidden></p>
+        </article>
+
+        <article class="card chart-card">
+          <div class="card-head">
+            <h2>경력 요건 분포</h2>
+            <span class="card-sub">모집직무 기준</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-career"></canvas></div>
+          <p class="empty-msg" hidden></p>
+        </article>
+
+        <article class="card chart-card">
+          <div class="card-head">
+            <h2>학력 요건 분포</h2>
+            <span class="card-sub">모집직무 기준</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-education"></canvas></div>
+          <p class="empty-msg" hidden></p>
+        </article>
+
+        <article class="card chart-card chart-card--wide">
+          <div class="card-head">
+            <h2>고용형태</h2>
+            <span class="card-sub">공고 단위</span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-type"></canvas></div>
+          <p class="empty-msg" hidden></p>
+        </article>
+      </section>
+
+      <!-- 인사이트 -->
+      <section class="card insight" id="insight-card" aria-label="주간 인사이트">
+        <div class="insight-head">
+          <span class="insight-icon" aria-hidden="true">✨</span>
+          <h2>이번 주 트렌드 요약</h2>
+        </div>
+        <p id="insight-text" class="insight-text">분석 중…</p>
+      </section>
+
+      <!-- 공고 목록 -->
+      <section class="card list-card" aria-label="공고 목록">
+        <div class="card-head list-head">
+          <h2>채용 공고</h2>
+          <span class="card-sub" id="list-count"></span>
+        </div>
+        <div id="postings-list" class="postings"></div>
+        <div class="pager">
+          <button id="pager-prev" class="btn" disabled>이전</button>
+          <span id="pager-info" class="pager-info">1 / 1</span>
+          <button id="pager-next" class="btn" disabled>다음</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============ 뷰 2: 인사이트 ============ -->
+    <main data-view="insights" class="view">
+      <div class="view-intro">
+        <h2>💡 IT/개발 직군 인사이트</h2>
+        <p class="view-note">※ 워크넷 등록 공고 기준 · 현재 IT/개발 직군 <strong id="ins-sample-count">-</strong>건 기준 통계입니다. (수집 주기에 따라 실시간 갱신)</p>
+      </div>
+
+      <!-- C. 경력·학력 -->
+      <section class="card insight-section">
+        <h3>C. 경력·학력 요건</h3>
+        <div class="insight-cards" id="ins-cards-career"></div>
+        <div class="insight-charts">
+          <div class="chart-wrap"><canvas id="chart-ins-career"></canvas></div>
+          <div class="chart-wrap"><canvas id="chart-ins-edu"></canvas></div>
+        </div>
+        <p class="insight-text" id="ins-text-career"></p>
+      </section>
+
+      <!-- D. 지역 -->
+      <section class="card insight-section">
+        <h3>D. 지역 집중도</h3>
+        <div class="insight-cards" id="ins-cards-region"></div>
+        <div class="chart-wrap insight-chart-wide"><canvas id="chart-ins-region"></canvas></div>
+        <p class="insight-text" id="ins-text-region"></p>
+      </section>
+
+      <!-- F. 전체 vs IT 비교 -->
+      <section class="card insight-section">
+        <h3>F. 전체 vs IT/개발 직군 비교</h3>
+        <div class="compare-grid" id="compare-grid"></div>
+        <p class="insight-text" id="ins-text-compare"></p>
+      </section>
+
+      <!-- G. 흐름 비교 (과거 vs 현재 — 집계 스냅샷 기반, IT/개발 직군) -->
+      <section class="card insight-section">
+        <h3>G. IT/개발 채용 모집직무 흐름 <span class="section-tag">수집 시점 비교</span></h3>
+        <p class="insight-note" id="trend-note">지표: <strong>IT/개발 직군 모집직무 수</strong> · 직종별 증감(건수·%) · 매 수집(1일 2회) 시점 비교</p>
+        <div class="insight-cards" id="trend-cards"></div>
+        <div class="insight-charts">
+          <div class="chart-wrap insight-chart-wide"><canvas id="chart-trend-total"></canvas></div>
+        </div>
+        <div class="trend-diff" id="trend-diff"></div>
+        <p class="insight-text" id="ins-text-trend"></p>
+      </section>
+    </main>
+
+    <!-- ============ 뷰 3: 맞춤 공고 ============ -->
+    <main data-view="custom" class="view">
+      <div class="view-intro">
+        <h2>🎯 나만의 맞춤 공고</h2>
+        <p class="view-note">내 조건을 설정하면 딱 맞는 공고를 찾아드려요. 카드를 누르면 워크넷 원본으로 이동합니다.</p>
+      </div>
+
+      <section class="card custom-form" aria-label="맞춤 조건">
+        <div class="custom-row">
+          <div class="filter-group">
+            <label for="c-region">지역</label>
+            <select id="c-region"><option value="">전체</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="c-category">직종</label>
+            <select id="c-category"><option value="">전체</option></select>
+          </div>
+        </div>
+        <div class="custom-row custom-toggles">
+          <label class="chk"><input type="checkbox" id="c-new" /> 신입 가능</label>
+          <label class="chk"><input type="checkbox" id="c-edu-none" /> 학력무관 포함</label>
+          <label class="chk"><input type="checkbox" id="c-regular" /> 정규직</label>
+          <label class="chk"><input type="checkbox" id="c-it" /> IT·개발 직군만</label>
+        </div>
+        <div class="custom-presets">
+          <span class="preset-label">⚡ 빠른 선택:</span>
+          <button class="btn btn-sm" data-preset="seoul-new">서울 신입 정규직</button>
+          <button class="btn btn-sm" data-preset="intern">학력무관 인턴</button>
+          <button class="btn btn-sm" data-preset="it-any">IT 전체</button>
+          <button class="btn btn-sm btn-ghost" data-preset="reset">초기화</button>
+        </div>
+      </section>
+
+      <section class="card list-card" aria-label="맞춤 공고 결과">
+        <div class="card-head list-head">
+          <h2>나에게 맞는 공고</h2>
+          <span class="card-sub" id="custom-count"></span>
+        </div>
+        <div id="custom-list" class="postings"></div>
+        <div class="pager">
+          <button id="c-prev" class="btn" disabled>이전</button>
+          <span id="c-info" class="pager-info">1 / 1</span>
+          <button id="c-next" class="btn" disabled>다음</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============ 뷰 4: 이력서 관리 (Step 7) ============ -->
+    <main data-view="resume" class="view">
+      <div class="view-intro">
+        <h2>📝 이력서 관리</h2>
+        <p class="view-note">내 이력을 입력하면 원하는 직무에 맞춰 AI가 자기소개서를 작성해 드려요. 직무를 바꾸면 같은 이력으로 새 자소서를 다시 써줍니다.</p>
+      </div>
+
+      <div class="resume-grid">
+        <!-- 좌측: 프로필 관리 -->
+        <section class="card resume-panel" aria-label="프로필 관리">
+          <div class="resume-panel-head">
+            <h3>📋 프로필</h3>
+            <button class="btn btn-sm" id="r-new-profile">+ 새 프로필</button>
+          </div>
+          <div id="r-profile-list" class="resume-profile-list"></div>
+
+          <div id="r-profile-form" class="resume-form hidden">
+            <input type="text" id="rf-name" class="input" placeholder="프로필명 (예: 백엔드 지원용)" />
+            <label class="field-label">경력 / 경험</label>
+            <textarea id="rf-experience" class="textarea" rows="4" placeholder="예) 3년간 스프링 기반 백엔드 개발. 이커머스 결제 시스템 구축..."></textarea>
+            <label class="field-label">기술 / 스택</label>
+            <textarea id="rf-skills" class="textarea" rows="3" placeholder="예) Java, Spring Boot, MySQL, Docker, AWS"></textarea>
+            <label class="field-label">포트폴리오</label>
+            <textarea id="rf-portfolio" class="textarea" rows="3" placeholder="예) github.com/xxx — 사이드 프로젝트 링크와 설명"></textarea>
+
+            <div class="resume-emphasis">
+              <label class="field-label">🪄 AI 작성 요구사항 (항목별 강조 포인트)</label>
+              <p class="emphasis-guide">기술·프로젝트가 여러 개일 때, <strong>각 항목에 어떤 것을 강조할지</strong> 적어주면 AI가 한 경험을 반복하지 않고 골고루 녹여냅니다. (선택)</p>
+              <div class="emphasis-grid">
+                <div class="emphasis-item">
+                  <span class="emphasis-key">① 지원동기</span>
+                  <textarea id="rf-em-motivation" class="textarea emphasis-ta" rows="2" placeholder="예) 클라우드 플랫폼에 기여하고 싶은 동기 + 사이드 프로젝트 'X' 경험"></textarea>
+                </div>
+                <div class="emphasis-item">
+                  <span class="emphasis-key">② 성장과정</span>
+                  <textarea id="rf-em-growth" class="textarea emphasis-ta" rows="2" placeholder="예) 팀 프로젝트에서 갈등을 해결하며 키운 협업·소통 능력"></textarea>
+                </div>
+                <div class="emphasis-item">
+                  <span class="emphasis-key">③ 성격 장단점</span>
+                  <textarea id="rf-em-strength" class="textarea emphasis-ta" rows="2" placeholder="예) 꼼꼼함(Spring 테스트 코드)을 장점, 완벽주의를 단점으로"></textarea>
+                </div>
+                <div class="emphasis-item">
+                  <span class="emphasis-key">④ 직무경험</span>
+                  <textarea id="rf-em-career" class="textarea emphasis-ta" rows="2" placeholder="예) Spring 기반 결제 시스템 구축·장애 대응 경험 중심"></textarea>
+                </div>
+                <div class="emphasis-item">
+                  <span class="emphasis-key">⑤ 입사 후 포부</span>
+                  <textarea id="rf-em-vision" class="textarea emphasis-ta" rows="2" placeholder="예) Docker/AWS로 확장 가능한 아키텍처 구축에 기여"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="resume-form-actions">
+              <button class="btn btn-sm" id="rf-save">저장</button>
+              <button class="btn btn-sm btn-ghost" id="rf-cancel">취소</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 우측: 자소서 (마스터-디테일: 리스트 모드 ↔ 에디터 모드) -->
+        <section class="card resume-panel" aria-label="자소서">
+          <div class="resume-panel-head">
+            <h3>📝 자기소개서</h3>
+            <span id="re-step" class="resume-step"></span>
+          </div>
+
+          <!-- 상태 0: 프로필 미선택 -->
+          <div id="r-editor-empty" class="resume-empty">
+            <p class="empty-big">👈 먼저 좌측에서 <strong>프로필을 선택</strong>하세요</p>
+            <p class="empty-sub">프로필이 없다면 <strong>"+ 새 프로필"</strong>을 눌러 내 경력·기술·포트폴리오를 입력하세요.<br />그러면 AI가 그 정보를 바탕으로 자소서를 써줍니다.</p>
+          </div>
+
+          <!-- 상태 1: 리스트 모드 (저장된 자소서 목록 + 새 자소서 작성 카드) -->
+          <div id="r-list-view" class="resume-list-view hidden">
+            <div id="r-letters" class="resume-letters"></div>
+            <div class="resume-new-card" id="re-new-letter-card">
+              <span class="rnc-icon">🤖</span>
+              <span class="rnc-text"><strong>AI로 초안 생성</strong><small>직무를 선택하면 자동으로 자소서를 작성해 드려요</small></span>
+              <span class="rnc-go">＋</span>
+            </div>
+          </div>
+
+          <!-- 상태 2: 에디터 모드 (항상 상단에 목록으로 버튼) -->
+          <div id="r-editor" class="resume-editor hidden">
+            <div class="resume-editor-bar">
+              <button class="btn btn-sm btn-ghost" id="re-back">← 목록으로</button>
+              <span id="re-bar-title" class="re-bar-title"></span>
+            </div>
+            <div class="resume-editor-top">
+              <input type="text" id="re-title" class="input" placeholder="자소서 제목 (예: 네이버 백엔드 지원서)" />
+              <select id="re-target-job" class="input"><option value="">타겟 직무 선택 ▼</option></select>
+              <input type="text" id="re-company" class="input" placeholder="지원 회사명 (선택, 예: 네이버)" />
+            </div>
+            <p id="re-hint" class="resume-hint">💡 아래 <strong>"🤖 AI로 초안 생성"</strong> 버튼을 누르면 프로필 기반으로 5개 항목을 자동 작성합니다. (직무를 먼저 선택하세요)</p>
+
+            <!-- Step 9: 채용공고 요구사항 (에디터 안 통합) -->
+            <div class="req-section">
+              <button type="button" id="req-toggle" class="req-toggle" aria-expanded="false">
+                <span class="req-toggle-title">📋 채용공고 요구사항 <span class="req-badge" id="req-badge" hidden></span></span>
+                <span class="req-toggle-arrow" id="req-toggle-arrow">▾</span>
+              </button>
+              <div id="req-body" class="req-body hidden">
+                <p class="req-guide">지원할 공고의 요구사항을 가져오면 AI가 <strong>그 공고가 원하는 역량에 맞춰</strong> 자소서를 작성합니다. (선택)</p>
+
+                <!-- 소스 선택 탭 -->
+                <div class="req-tabs" role="tablist">
+                  <button type="button" class="req-tab active" data-req-tab="db">① DB에서 찾기</button>
+                  <button type="button" class="req-tab" data-req-tab="url">② URL 가져오기</button>
+                  <button type="button" class="req-tab" data-req-tab="paste">③ 붙여넣기</button>
+                </div>
+
+                <!-- ① DB 탭: 회사명 검색 → 공고 목록 → 선택 -->
+                <div class="req-pane" data-req-pane="db">
+                  <input type="text" id="rq-db-query" class="input" placeholder="회사명 입력 (예: 카카오, 네이버)" />
+                  <button type="button" id="rq-db-search" class="btn btn-sm">검색</button>
+                  <div id="rq-db-results" class="req-db-results"></div>
+                </div>
+
+                <!-- ② URL 탭 -->
+                <div class="req-pane hidden" data-req-pane="url">
+                  <input type="url" id="rq-url-input" class="input" placeholder="채용공고 URL (https://...)" />
+                  <button type="button" id="rq-url-fetch" class="btn btn-sm">가져오기</button>
+                  <p class="req-note">※ 사람인·원티드는 AI 읽기가 차단되어 있습니다. 그 경우 ③ 붙여넣기를 사용해주세요.</p>
+                  <p id="rq-url-status" class="req-status" hidden></p>
+                </div>
+
+                <!-- ③ 붙여넣기 탭 -->
+                <div class="req-pane hidden" data-req-pane="paste">
+                  <textarea id="rq-paste-input" class="textarea" rows="6" placeholder="채용공고 페이지에서 내용을 복사해 붙여넣어 주세요. (모집분야·주요업무·자격요건·우대사항 포함, 최대 8,000자)"></textarea>
+                  <div class="req-paste-actions">
+                    <button type="button" id="rq-paste-analyze" class="btn btn-sm">분석</button>
+                    <span id="rq-paste-status" class="req-status"></span>
+                  </div>
+                </div>
+
+                <!-- 요구사항 미리보기 카드 (모든 소스 공통 — 수정 가능) -->
+                <div id="req-preview" class="req-preview hidden">
+                  <div class="req-preview-head">
+                    <strong id="req-preview-title"></strong>
+                    <span class="req-source-tag" id="req-source-tag"></span>
+                    <button type="button" id="req-clear" class="req-clear" title="요구사항 삭제">✕ 삭제</button>
+                  </div>
+                  <div class="req-preview-grid">
+                    <label class="field-label">주요 업무 <span class="req-edit-hint">(한 줄에 하나씩)</span></label>
+                    <textarea id="req-edit-duties" class="textarea req-edit-ta" rows="3"></textarea>
+                    <label class="field-label">지원자격 / 필수 요건</label>
+                    <textarea id="req-edit-required" class="textarea req-edit-ta" rows="3"></textarea>
+                    <label class="field-label">우대사항</label>
+                    <textarea id="req-edit-preferred" class="textarea req-edit-ta" rows="2"></textarea>
+                    <label class="field-label">근무조건 등 기타</label>
+                    <textarea id="req-edit-notes" class="textarea req-edit-ta" rows="2"></textarea>
+                  </div>
+                  <p class="req-preview-foot">💡 내용을 수정할 수 있습니다. 수정한 그대로 AI 생성에 반영됩니다.</p>
+                </div>
+              </div>
+            </div>
+            <div class="resume-actions">
+              <button class="btn btn-primary" id="re-generate">🤖 AI로 초안 생성</button>
+              <button class="btn btn-ghost" id="re-regenerate">🔄 다른 직무로 재생성</button>
+              <button class="btn btn-sm" id="re-save">💾 저장</button>
+              <button class="btn btn-sm btn-danger" id="re-delete">삭제</button>
+            </div>
+            <p id="re-status" class="resume-status"></p>
+            <div id="re-items" class="resume-items"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <span class="footer-main">데이터: 고용24 국민취업지원제도 채용정보 API · 자동 수집 1일 2회</span>
+      <span class="footer-note">※ 본 통계는 워크넷 등록 공고 기준이며, 전체 채용시장을 대변하지 않습니다.</span>
+    </footer>
+  </div>
+
+  <!-- ============ Step 8: 로그인 / 회원가입 오버레이 ============ -->
+  <div id="auth-overlay" class="auth-overlay hidden" role="dialog" aria-modal="true" aria-label="로그인">
+    <div class="auth-card">
+      <div class="auth-head">
+        <div class="auth-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </div>
+        <div>
+          <h2 id="auth-title">로그인</h2>
+          <p class="auth-sub" id="auth-sub">이력서 관리를 이용하려면 로그인하세요</p>
+        </div>
+      </div>
+
+      <!-- 로그인 폼 -->
+      <form id="auth-login-form" class="auth-form" autocomplete="on">
+        <label class="field-label" for="li-id">아이디</label>
+        <input type="text" id="li-id" class="input" placeholder="아이디" autocomplete="username" required />
+        <label class="field-label" for="li-pw">비밀번호</label>
+        <input type="password" id="li-pw" class="input" placeholder="비밀번호" autocomplete="current-password" required />
+        <p id="li-msg" class="auth-msg" hidden></p>
+        <button type="submit" class="btn btn-primary auth-submit" id="li-submit">로그인</button>
+        <div class="auth-switch">
+          아이디가 없으신가요?
+          <button type="button" id="btn-goto-register" class="auth-link">회원가입</button>
+        </div>
+        <button type="button" id="btn-auth-close" class="auth-close" title="닫기" aria-label="닫기">✕</button>
+      </form>
+
+      <!-- 회원가입 폼 (이름 / ID / 비밀번호 3필드) -->
+      <form id="auth-register-form" class="auth-form hidden" autocomplete="on">
+        <label class="field-label" for="rg-name">이름</label>
+        <input type="text" id="rg-name" class="input" placeholder="이름" autocomplete="name" required />
+        <label class="field-label" for="rg-id">아이디</label>
+        <input type="text" id="rg-id" class="input" placeholder="영문/숫자 3~30자" autocomplete="username" required />
+        <label class="field-label" for="rg-pw">비밀번호</label>
+        <input type="password" id="rg-pw" class="input" placeholder="6자 이상" autocomplete="new-password" required />
+        <p id="rg-msg" class="auth-msg" hidden></p>
+        <button type="submit" class="btn btn-primary auth-submit" id="rg-submit">회원가입</button>
+        <div class="auth-switch">
+          이미 아이디가 있으신가요?
+          <button type="button" id="btn-goto-login" class="auth-link">로그인</button>
+        </div>
+        <button type="button" id="btn-auth-close2" class="auth-close" title="닫기" aria-label="닫기">✕</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="app.js?v=20260831_3"></script>
+</body>
+</html>

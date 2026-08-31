@@ -1,0 +1,33 @@
+{
+  "name": "jobmarketradar",
+  "version": "0.1.0",
+  "description": "JobMarketRadar - 국민취업지원제도 채용정보 API 기반 채용 트렌드 대시보드",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "collect": "node collector.js",
+    "backfill": "node collector.js --backfill",
+    "db:init": "node -e \"require('./db').init()\""
+  },
+  "keywords": [
+    "worknet",
+    "dhs",
+    "job-market",
+    "dashboard",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "fast-xml-parser": "^4.5.0",
+    "node-cron": "^3.0.3"
+  },
+  "directories": {
+    "doc": "docs"
+  }
+}

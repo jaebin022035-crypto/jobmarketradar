@@ -1,0 +1,33 @@
+# JobMarketRadar 배포 실행 정의 (Step 6)
+# - SQLite 데이터 영속화(★) : ./data 를 컨테이너 /app/data 에 바인드 마운트
+#   → docker compose down 해도 data/jobmarket.db 가 호스트에 남아 유지됨
+# - .env 주입 : 호스트 .env(DHS_API_KEY 등)를 env_file 로 전달 (이미지에 넣지 않음)
+# - TZ=Asia/Seoul : cron 스케줄이 한국 시간으로 동작 (기본 UTC는 9시간 어긋남)
+# - restart: unless-stopped : 컨테이너 죽으면 자동 재기동 (cron도 서버 프로세스 안에서 도므로 같이 살아남)
+#
+# 실행:   docker compose up --build      (포그라운드, 로그 바로 확인)
+# 백그라운드: docker compose up -d --build
+# 재기동: docker compose down && docker compose up -d
+# 볼륨 영속성 검증: data 채운 뒤 down/up 해도 데이터 유지 확인 (Step 6 문서 5절)
+
+services:
+  app:
+    build: .
+    container_name: jobmarketradar
+    ports:
+      - "3000:3000"             # 호스트:컨테이너. labport 배포 시 start_server.sh 규칙(고유 포트) 사용
+    env_file:
+      - .env                    # DHS_API_KEY, PORT, CRON_SCHEDULE 주입 (이미지에 넣지 않음)
+    environment:
+      - TZ=Asia/Seoul           # cron KST 맞춤
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data        # ★ SQLite 영속화 (DB 경로 = db.js 의 data/jobmarket.db)
+    restart: unless-stopped
+    healthcheck:
+      # 핵심 API 응답으로 헬스 판정 (Step 6 Test 단계와 동일 엔드포인트)
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/summary"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

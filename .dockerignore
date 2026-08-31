@@ -1,0 +1,40 @@
+# 이미지에 넣으면 안 되는 파일들 (빌드 속도 + 보안 + 데이터 보호)
+# Step 6 문서 2절: .env / *.db 는 절대 이미지에 넣지 않음
+#   - .env  → 런타임에 compose env_file/environment 로 주입
+#   - *.db  → 볼륨 마운트로 영속화 (이미지에 넣으면 배포마다 초기화)
+
+node_modules
+npm-debug.log
+
+# 환경변수 (시크릿) — 런타임 주입
+.env
+
+# 데이터베이스 (볼륨으로 영속화)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+data/
+
+# labport 서버 실행 산물물
+server.log
+server.pid
+server.port
+
+# Git / 문서 / 불필요
+.git
+.gitignore
+docs/
+*.md
+.DS_Store
+
+# Docker 자체 (재귀 빌드 방지)
+Dockerfile
+docker-compose.yml
+.dockerignore
+Jenkinsfile
+
+# 예외: 마이그레이션용 DB 시드는 이미지에 포함 (initContainer가 최초 1회 PVC로 복사)
+# - 위 *.db / data/ 제외 규칙과 별개로, 영속 볼륨이 비어있을 때만 채우는 초기 데이터
+!docker-data-seed/
+!docker-data-seed/jobmarket.db
