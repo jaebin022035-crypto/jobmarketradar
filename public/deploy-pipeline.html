@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobMarketRadar · 배포 파이프라인</title>
+<style>
+/* ============ 토큰 ============ */
+:root {
+  --ground: #F3F6F5;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAF9;
+  --ink: #17252B;
+  --ink-soft: #55666D;
+  --line: #DCE4E3;
+  --line-strong: #B7C4C3;
+  --accent: #0E7490;          /* 배포 흐름 (cyan) */
+  --amber: #96550A;           /* 수동 개입 */
+  --green: #16794A;           /* 정상 */
+  --red: #B3362B;             /* 가드레일 */
+  --violet: #6D28D9;          /* 런타임 데이터 흐름 */
+  --shadow: 0 1px 2px rgba(23,37,43,.05), 0 4px 14px rgba(23,37,43,.06);
+  --sans: -apple-system, "Segoe UI", "Noto Sans KR", "Malgun Gothic", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "D2Coding", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0C1417;
+    --surface: #131F23;
+    --surface-2: #0F191D;
+    --ink: #E3EBEA;
+    --ink-soft: #8FA2A6;
+    --line: #27383D;
+    --line-strong: #3D5157;
+    --accent: #3EC3DE;
+    --amber: #E8A33D;
+    --green: #57C283;
+    --red: #E5766A;
+    --violet: #A78BFA;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0C1417;
+  --surface: #131F23;
+  --surface-2: #0F191D;
+  --ink: #E3EBEA;
+  --ink-soft: #8FA2A6;
+  --line: #27383D;
+  --line-strong: #3D5157;
+  --accent: #3EC3DE;
+  --amber: #E8A33D;
+  --green: #57C283;
+  --red: #E5766A;
+  --violet: #A78BFA;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+}
+
+/* ============ 베이스 ============ */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.wrap { max-width: 920px; margin: 0 auto; padding: 48px 22px 72px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ============ 헤더 ============ */
+header.masthead { margin-bottom: 40px; }
+header.masthead h1 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  margin: 10px 0 6px;
+}
+header.masthead .sub {
+  color: var(--ink-soft);
+  font-size: .95rem;
+  max-width: 62ch;
+}
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: .72rem; font-weight: 500;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+.pill .dot.a { background: var(--amber); }
+.pill code { color: var(--ink); }
+
+/* ============ 섹션 공통 ============ */
+section { margin-top: 56px; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.sec-head h2 { font-size: 1.12rem; font-weight: 700; letter-spacing: -.005em; }
+.sec-head .no { font-family: var(--mono); font-size: .7rem; color: var(--accent); letter-spacing: .1em; font-weight: 600; }
+.sec-desc { color: var(--ink-soft); font-size: .88rem; max-width: 66ch; margin-bottom: 20px; }
+
+/* ============ 도식 ============ */
+.schematic { margin-top: 8px; }
+.stage-label {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 14px;
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: var(--accent);
+}
+.stage-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.stage[data-tone="runtime"] > .stage-label { color: var(--violet); }
+.stage[data-tone="infra"] > .stage-label { color: var(--ink-soft); }
+.stage-label .n {
+  font-family: var(--mono); font-size: .66rem; font-weight: 700;
+  color: var(--ground); background: var(--accent);
+  padding: 1px 7px; border-radius: 3px; letter-spacing: .06em;
+}
+.stage[data-tone="runtime"] .stage-label .n { background: var(--violet); }
+.stage[data-tone="infra"] .stage-label .n { background: var(--ink-soft); }
+
+.nodes { display: grid; gap: 12px; }
+.nodes.c3 { grid-template-columns: repeat(3, 1fr); }
+.nodes.c2 { grid-template-columns: repeat(2, 1fr); }
+
+.node {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 13px 15px 12px;
+  box-shadow: var(--shadow);
+}
+.node.neutral { border-left-color: var(--line-strong); }
+.node.amber  { border-left-color: var(--amber); }
+.node.violet { border-left-color: var(--violet); }
+.node.green  { border-left-color: var(--green); }
+
+.node-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.node-name { font-size: .9rem; font-weight: 650; letter-spacing: -.005em; }
+.kind {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft); border: 1px solid var(--line); border-radius: 3px;
+  padding: 1px 6px; white-space: nowrap; flex: none;
+}
+.node-body { font-size: .8rem; color: var(--ink-soft); line-height: 1.6; }
+.node-body code, .tk {
+  font-family: var(--mono); font-size: .92em;
+  color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 3px; padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.chip {
+  font-family: var(--mono); font-size: .66rem; font-weight: 500;
+  padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+}
+.chip.c  { color: var(--accent);  background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.chip.a  { color: var(--amber);   background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.chip.g  { color: var(--green);   background: color-mix(in srgb, var(--green) 12%, transparent); }
+.chip.r  { color: var(--red);     background: color-mix(in srgb, var(--red) 11%, transparent); }
+.chip.v  { color: var(--violet);  background: color-mix(in srgb, var(--violet) 12%, transparent); }
+.chip.m  { color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); }
+
+/* ============ 커넥터 ============ */
+.flow {
+  display: flex; flex-direction: column; align-items: center;
+  height: 34px; margin: 2px 0;
+}
+.flow .line { width: 2px; flex: 1; background: var(--accent); }
+.flow .head {
+  width: 0; height: 0; flex: none;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--accent);
+}
+.flow.violet .line { background: var(--violet); }
+.flow.violet .head { border-top-color: var(--violet); }
+.flow .tag {
+  order: -1; margin: 1px 0 2px;
+  font-family: var(--mono); font-size: .64rem; color: var(--ink-soft);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 3px;
+  padding: 1px 7px; white-space: nowrap;
+}
+.flow.dashed .line { background: repeating-linear-gradient(to bottom, var(--amber) 0 5px, transparent 5px 9px); }
+.flow.dashed .head { border-top-color: var(--amber); }
+
+/* 두 갈래 분기 */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.track {
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-2); padding: 14px;
+}
+.track-head {
+  font-family: var(--mono); font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.track-head::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.track .node { margin-bottom: 10px; }
+.track .node:last-child { margin-bottom: 0; }
+.track-note { font-size: .76rem; color: var(--ink-soft); line-height: 1.6; margin-top: 10px; padding: 0 2px; }
+.track-note strong { color: var(--ink); font-weight: 600; }
+
+/* 수렴 레일 */
+.merge { position: relative; height: 40px; margin: 2px 0 4px; }
+.merge .rail {
+  position: absolute; top: 18px; left: 25%; right: 25%; height: 2px; background: var(--accent);
+}
+.merge .stub {
+  position: absolute; top: 0; width: 2px; height: 18px; background: var(--accent);
+}
+.merge .stub.l { left: 25%; }
+.merge .stub.r { right: 25%; }
+.merge .drop {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  width: 2px; height: 14px; background: var(--accent);
+}
+.merge .tip {
+  position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--accent);
+}
+
+/* ============ 경로 비교 ============ */
+.paths { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.path-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.path-card > .ph {
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.path-card > .ph .t { font-size: .92rem; font-weight: 650; }
+.path-card > .pb { padding: 14px 16px; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.steps li {
+  display: flex; gap: 10px; padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: .82rem; color: var(--ink-soft);
+}
+.steps li:last-child { border-bottom: 0; }
+.steps .s {
+  font-family: var(--mono); font-size: .64rem; font-weight: 700; color: var(--accent);
+  padding-top: 3px; flex: none; width: 16px;
+}
+.steps li.manual .s { color: var(--amber); }
+.steps li strong { color: var(--ink); font-weight: 600; }
+
+/* ============ 수동 개입 / 가드레일 ============ */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mini {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 7px;
+  padding: 13px 15px; box-shadow: var(--shadow);
+}
+.mini .mt { font-size: .86rem; font-weight: 650; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+.mini .md { font-size: .78rem; color: var(--ink-soft); line-height: 1.6; }
+.mini .md code { font-family: var(--mono); font-size: .92em; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.mini .glyph {
+  font-family: var(--mono); font-size: .6rem; font-weight: 700; letter-spacing: .06em;
+  padding: 1px 6px; border-radius: 3px; flex: none;
+}
+.glyph.a { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.glyph.r { color: var(--red);   background: color-mix(in srgb, var(--red) 11%, transparent); }
+
+/* ============ 터미널 ============ */
+.term {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden;
+}
+.term .th {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: .68rem; color: var(--ink-soft); letter-spacing: .08em;
+}
+.term .th .d { display: flex; gap: 5px; }
+.term .th .d i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
+.term pre {
+  margin: 0; padding: 15px 16px 17px;
+  font-family: var(--mono); font-size: .76rem; line-height: 1.85;
+  color: var(--ink); overflow-x: auto;
+  font-variant-numeric: tabular-nums;
+}
+.term pre .c { color: var(--ink-soft); }
+.term pre .p { color: var(--accent); font-weight: 600; }
+.term pre .m { color: var(--amber); }
+
+/* ============ 푸터 ============ */
+footer {
+  margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line);
+  font-size: .76rem; color: var(--ink-soft);
+  display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* ============ 반응형 ============ */
+@media (max-width: 720px) {
+  .wrap { padding: 34px 16px 56px; }
+  header.masthead h1 { font-size: 1.4rem; }
+  .nodes.c3, .nodes.c2, .split, .paths, .grid2 { grid-template-columns: 1fr; }
+  .merge .rail, .merge .stub { display: none; }
+  .merge { height: 30px; }
+  .merge .drop { top: 12px; height: 12px; }
+  .merge .tip { top: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ═══════════ 헤더 ═══════════ -->
+  <header class="masthead">
+    <div class="eyebrow">Deployment Pipeline · 2026-08-31 기준</div>
+    <h1>JobMarketRadar 배포 파이프라인</h1>
+    <p class="sub">로컬 소스에서 운영 URL까지 — <strong>이미지 경로</strong>와 <strong>매니페스트 경로</strong> 두 갈래가
+    vcluster 안의 하나의 Pod에서 수렴하는 구조. ArgoCD가 Git을 단일 진실의 소스로 삼아 클러스터를 자동 수렴시킨다.</p>
+    <div class="status-row">
+      <span class="pill"><span class="dot"></span>ArgoCD <code>Synced · Healthy</code></span>
+      <span class="pill"><span class="dot"></span>digest 일치 <code>5ce2421b…</code></span>
+      <span class="pill"><span class="dot"></span>Git = <code>d17f7d4</code></span>
+      <span class="pill"><span class="dot a"></span>수동 개입 3곳</span>
+    </div>
+  </header>
+
+  <!-- ═══════════ 도식 ═══════════ -->
+  <section class="schematic">
+    <div class="sec-head"><span class="no">§</span><h2>전체 흐름</h2></div>
+    <p class="sec-desc">위에서 아래로 배포 순서대로 읽는다. 실선 청색 = 자동 배포 흐름 · 점선 주황 = 수동 개입 · 보라 = 배포 후 런타임 데이터 흐름.</p>
+
+    <!-- STAGE 01 -->
+    <div class="stage">
+      <div class="stage-label"><span class="n">01</span>로컬 워크스페이스<span>~/workspaces/JobMarketRader</span></div>
+      <div class="nodes c3">
+        <div class="node">
+          <div class="node-top"><span class="node-name">앱 소스</span><span class="kind">source</span></div>
+          <p class="node-body"><span class="tk">server.js</span> <span class="tk">db.js</span> <span class="tk">ai.js</span>
+          <span class="tk">auth.js</span> <span class="tk">public/</span> <span class="tk">db/schema.sql</span></p>
+          <div class="chip-row"><span class="chip m">Dockerfile로 이미지화</span></div>
+        </div>
+        <div class="node amber">
+          <div class="node-top"><span class="node-name">.env</span><span class="kind">secret</span></div>
+          <p class="node-body">DHS_API_KEY · GEMINI_API_KEY</p>
+          <div class="chip-row"><span class="chip a">커밋·이미지 금지</span><span class="chip m">gitignore됨</span></div>
+        </div>
+        <div class="node">
+          <div class="node-top"><span class="node-name">deploy/ 매니페스트</span><span class="kind">yaml</span></div>
+          <p class="node-body">10-pvc · 20-deployment · 30-ingress · argocd/</p>
+          <div class="chip-row"><span class="chip r">00·40은 의도적 제외</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow"><span class="line"></span><span class="head"></span></div>
+    <div class="flow"><span class="tag">docker build &nbsp;·&nbsp; git push — 저장소별로 갈림</span><span class="line"></span><span class="head"></span></div>
+
+    <!-- STAGE 02 : 두 갈래 -->
+    <div class="stage">
+      <div class="stage-label"><span class="n">02</span>저장소 — 두 갈래</div>
+      <div class="split">
+        <div class="track">
+          <div class="track-head">이미지 경로</div>
+          <div class="node">
+            <div class="node-top"><span class="node-name">docker build → push</span><span class="kind">manual</span></div>
+            <p class="node-body">멀티스테이지 빌드 (node:20-bookworm-slim)<br>
+            정적 파일·의존성을 이미지로 굽는다</p>
+          </div>
+          <div class="node green">
+            <div class="node-top"><span class="node-name">Harbor</span><span class="kind">registry</span></div>
+            <p class="node-body"><span class="tk">std-harbor.kopoctc.kr/kopo13/jobradar:latest</span><br>
+            digest <span class="tk">sha256:5ce2421b…</span></p>
+            <div class="chip-row"><span class="chip g">실행 Pod와 일치 확인됨</span></div>
+          </div>
+          <p class="track-note">태그가 <strong>latest</strong>라 Git 변경 없이도 이미지 교체 가능 —
+          대신 클러스터에 <strong>재시작 신호</strong>를 직접 줘야 한다(아래 ③).</p>
+        </div>
+        <div class="track">
+          <div class="track-head">매니페스트 경로</div>
+          <div class="node amber">
+            <div class="node-top"><span class="node-name">git push</span><span class="kind">manual</span></div>
+            <p class="node-body">비밀번호 로그인 불가 → ArgoCD repo secret의<br>
+            토큰(<span class="tk">write:repository</span>)으로 Basic 인증</p>
+          </div>
+          <div class="node">
+            <div class="node-top"><span class="node-name">Gitea</span><span class="kind">git</span></div>
+            <p class="node-body"><span class="tk">std-gitea.kopoctc.kr/kopo13/web</span> · main<br>
+            54파일 — 앱 소스 + deploy/ + docs/</p>
+            <div class="chip-row"><span class="chip c">단일 진실의 소스</span></div>
+          </div>
+          <p class="track-note">ArgoCD가 보는 것은 이 중 <strong>deploy/ 경로뿐</strong>.
+          앱 소스는 버전 관리용 — 배포 동작은 매니페스트가 지배한다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 수렴 -->
+    <div class="merge">
+      <span class="stub l"></span><span class="stub r"></span>
+      <span class="rail"></span><span class="drop"></span><span class="tip"></span>
+    </div>
+
+    <!-- STAGE 03 : ArgoCD -->
+    <div class="stage">
+      <div class="stage-label"><span class="n">03</span>GitOps 컨트롤러</div>
+      <div class="nodes c2">
+        <div class="node">
+          <div class="node-top"><span class="node-name">ArgoCD Application</span><span class="kind">jobradar</span></div>
+          <p class="node-body">Gitea main의 <span class="tk">deploy/</span> 감시 · 최대 3분 폴링<br>
+          즉시 반영은 <span class="tk">refresh=normal</span> annotate</p>
+          <div class="chip-row">
+            <span class="chip c">automated</span>
+            <span class="chip c">selfHeal — Git이 항상 승리</span>
+            <span class="chip r">prune — Git에서 지우면 클러스터에서도 삭제</span>
+          </div>
+        </div>
+        <div class="node amber">
+          <div class="node-top"><span class="node-name">수동 rollout restart</span><span class="kind">③ manual</span></div>
+          <p class="node-body">이미지 태그가 latest로 같으면 Deployment 스펙에<br>
+          변화가 없어 ArgoCD도 움직이지 않는다 →<br>
+          <span class="tk">kubectl rollout restart</span>로 Pod 재생성</p>
+          <div class="chip-row"><span class="chip a">이미지 경로의 유일한 수동 단계</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow"><span class="tag">apply · drift 시 자동 복원</span><span class="line"></span><span class="head"></span></div>
+
+    <!-- STAGE 04 : 클러스터 -->
+    <div class="stage" data-tone="infra">
+      <div class="stage-label"><span class="n">04</span>vcluster · namespace jobradar</div>
+      <div class="nodes c2">
+        <div class="node">
+          <div class="node-top"><span class="node-name">Deployment</span><span class="kind">apps/v1</span></div>
+          <p class="node-body">replicas <strong>1</strong> (SQLite RWO → 단일 쓰기) · 전략 <strong>Recreate</strong><br>
+          image <span class="tk">jobradar:latest</span> ← Harbor pull</p>
+          <div class="chip-row">
+            <span class="chip r">Recreate = 스펙 오류 시 즉시 다운</span>
+            <span class="chip m">init-db: PVC 비어있으면 시드 복사 (≥32Mi)</span>
+          </div>
+        </div>
+        <div class="node amber">
+          <div class="node-top"><span class="node-name">jobradar-secret</span><span class="kind">manual</span></div>
+          <p class="node-body">DHS_API_KEY + GEMINI_API_KEY · 수동 <span class="tk">kubectl create secret</span><br>
+          Vault 경로 없음 → ExternalSecret은 미사용</p>
+          <div class="chip-row"><span class="chip a">Git에 두지 않음 — ArgoCD가 /data 무시</span></div>
+        </div>
+        <div class="node">
+          <div class="node-top"><span class="node-name">PVC jobradar-data</span><span class="kind">nfs-std-1</span></div>
+          <p class="node-body"><span class="tk">/app/data/jobmarket.db</span> — SQLite 영속화<br>
+          postings <strong>1691</strong> · recruits <strong>2248</strong> · 재배포 시 유지</p>
+        </div>
+        <div class="node">
+          <div class="node-top"><span class="node-name">Service + Ingress</span><span class="kind">traefik</span></div>
+          <p class="node-body"><span class="tk">kopo13-jobradar.std.kopoctc.kr</span> → ClusterIP:3000<br>
+          readiness/liveness <span class="tk">GET /api/summary</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow violet"><span class="tag">배포 완료 → 런타임 트래픽</span><span class="line"></span><span class="head"></span></div>
+
+    <!-- STAGE 05 : 런타임 -->
+    <div class="stage" data-tone="runtime">
+      <div class="stage-label"><span class="n">05</span>런타임 데이터 흐름</div>
+      <div class="nodes c3">
+        <div class="node violet">
+          <div class="node-top"><span class="node-name">사용자 트래픽</span><span class="kind">in</span></div>
+          <p class="node-body">대시보드 · 이력서 관리 · 로그인 세션<br>
+          미인증 API는 <span class="tk">401</span>로 차단</p>
+        </div>
+        <div class="node violet">
+          <div class="node-top"><span class="node-name">채용공고 수집</span><span class="kind">cron</span></div>
+          <p class="node-body">매일 09·21시 (KST) → 고용24 Open API<br>
+          호출 결과는 SQLite로 직접 적재</p>
+        </div>
+        <div class="node violet">
+          <div class="node-top"><span class="node-name">Gemini 호출</span><span class="kind">out</span></div>
+          <p class="node-body">2단 구조 — 공고 정제는 <span class="tk">flash-lite</span>(빠름),<br>
+          요건 분석·자소서 생성은 <span class="tk">flash</span>(품질)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 경로 비교 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>무엇을 바꾸느냐에 따라</h2></div>
+    <p class="sec-desc">같은 저장소 두 개지만, 변경 대상에 따라 거치는 경로와 수동 단계 수가 달라진다.</p>
+    <div class="paths">
+      <div class="path-card">
+        <div class="ph"><span class="t">앱 코드를 바꿀 때</span><span class="chip a">수동 3단계</span></div>
+        <div class="pb">
+          <ul class="steps">
+            <li class="manual"><span class="s">1</span><span><strong>docker build</strong> — 로컬에서 이미지 생성</span></li>
+            <li class="manual"><span class="s">2</span><span><strong>docker push</strong> — Harbor로 전송</span></li>
+            <li class="manual"><span class="s">3</span><span><strong>rollout restart</strong> — Pod가 새 이미지 당기게</span></li>
+            <li><span class="s">＋</span><span>git commit &amp; push — 소스 버전 기록용</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="path-card">
+        <div class="ph"><span class="t">매니페스트를 바꿀 때</span><span class="chip c">수동 1단계</span></div>
+        <div class="pb">
+          <ul class="steps">
+            <li class="manual"><span class="s">1</span><span><strong>git push</strong> — 토큰 인증으로 Gitea main에</span></li>
+            <li><span class="s">→</span><span>ArgoCD가 <strong>3분 내 자동 감지·적용</strong></span></li>
+            <li><span class="s">→</span><span>드리프트 발견 시 <strong>selfHeal이 Git 상태로 복원</strong></span></li>
+            <li><span class="s">＋</span><span>즉시 반영 원하면 refresh annotate (선택)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 수동 개입 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>수동 개입 지점 3곳</h2></div>
+    <p class="sec-desc">자동화가 못 미치는 지점. 주황색으로 표시한 이유가 각각 있다.</p>
+    <div class="grid2">
+      <div class="mini">
+        <div class="mt"><span class="glyph a">PUSH</span>git push 인증</div>
+        <p class="md">Gitea 계정이 비밀번호 로그인 불가 상태. credential helper도 없어 일반 push는
+        프롬프트에서 무한 대기한다. ArgoCD repo secret(<code>repo-3176879643</code>)의 토큰을
+        Basic 헤더로 실어 보낸다.</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph a">ROLL</span>rollout restart</div>
+        <p class="md">이미지 태그가 늘 <code>latest</code>라 Deployment 스펙은 변하지 않고,
+        ArgoCD는 이미지 교체를 감지하지 못한다. 빌드·push 후 반드시 직접 재시작한다.</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph a">SECR</span>jobradar-secret</div>
+        <p class="md">Vault에 경로가 없어 ExternalSecret 대신 수동 생성. Git에 두면 키 유출,
+        ExternalSecret을 두면 동기화 실패로 기존 키가 깨진다 — 그래서 <code>ignoreDifferences</code>로
+        ArgoCD가 data 필드를 못 건드리게 막아둔 상태.</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph a">INIT</span>init-db 시드</div>
+        <p class="md">PVC가 비어 있을 때만 이미지 속 시드 DB를 복사해 마이그레이션한다.
+        데이터가 있으면 건드리지 않으므로 재배포해도 수집 이력이 유지된다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 가드레일 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>운영 가드레일 — 실제 사고에서 나온 규칙</h2></div>
+    <p class="sec-desc">2026-08-31 배포에서 실제로 겪은 4건. 각 항목은 그날의 장애 원인과 복구 커밋으로 연결된다.</p>
+    <div class="grid2">
+      <div class="mini">
+        <div class="mt"><span class="glyph r">32Mi</span>컨테이너 최소 메모리</div>
+        <p class="md">vcluster 호스트 정책상 memory request가 32Mi 미만이면 pod-syncer가 Pod 생성을 거부한다.
+        initContainer에 16Mi를 지정했다가 <strong>약 3분 서비스 다운</strong> (<code>5018172</code>로 복구).</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph r">DIFF</span>push 전 워킹트리 검증</div>
+        <p class="md"><code>git checkout -f</code>는 로컬 수정을 조용히 되돌린다. 원격 이력을 받아온 뒤
+        커밋하면 GEMINI env 블록이 유실됐다 — push 전 <code>git diff</code> 확인이 필수
+        (<code>ff7df43</code>로 복구).</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph r">PRUN</span>Git에 없으면 지워진다</div>
+        <p class="md">prune+selfHeal이 켜져 있어 <code>kubectl set</code> 같은 수동 클러스터 변경은
+        언제든 Git 상태로 되돌려진다. 수동 우회 대신 매니페스트를 고쳐서 push한다.</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph r">WHY</span>없는 파일의 이유를 읽기</div>
+        <p class="md"><code>00-namespace.yaml</code>·<code>40-externalsecret.yaml</code>은 "못 올린 것"이
+        아니라 구조상 뺀 것. 삭제 커밋 메시지를 먼저 읽었어야 했다 — 실수로 복원했다가
+        <code>6afb53c</code>로 되돌림.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 검증 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>배포 후 검증</h2></div>
+    <p class="sec-desc">네 고리가 모두 같은 것을 가리키는지 확인하는 순서 — 로컬 Git, Gitea, Harbor, 실행 Pod.</p>
+    <div class="term">
+      <div class="th"><span class="d"><i></i><i></i><i></i></span>pipeline-check</div>
+      <pre><span class="c"># 1. Git — 로컬 HEAD와 Gitea main이 같은가</span>
+<span class="p">$</span> git rev-parse HEAD &amp;&amp; git ls-remote https://std-gitea.kopoctc.kr/kopo13/web.git refs/heads/main
+
+<span class="c"># 2. ArgoCD — 최신 커밋에 Synced/Healthy인가</span>
+<span class="p">$</span> kubectl get application jobradar -n argocd
+
+<span class="c"># 3. 이미지 — 실행 Pod digest = 방금 push한 digest인가</span>
+<span class="p">$</span> kubectl get pod -n jobradar -o jsonpath='{..imageID}'
+
+<span class="c"># 4. 서비스 — 외부 URL이 살아있는가</span>
+<span class="p">$</span> curl -sk https://kopo13-jobradar.std.kopoctc.kr/api/summary | head -c 120
+
+<span class="c"># 재배포 (매니페스트 변경 후 즉시 반영)</span>
+<span class="m">$</span> kubectl annotate application jobradar -n argocd argocd.argoproj.io/refresh=normal --overwrite</pre>
+    </div>
+  </section>
+
+  <footer>
+    <span>JobMarketRadar · vcluster GitOps — <code>docs/step10-gitops-gitea-sync.md</code> 참조</span>
+    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code></span>
+  </footer>
+
+</div>
+</body>
+</html>
