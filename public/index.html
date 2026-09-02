@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JobMarketRadar · 채용시장 트렌드</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="style.css?v=20260831_3" />
+  <link rel="stylesheet" href="style.css?v=20260902_1" />
 </head>
 <body>
   <div class="app">
@@ -29,6 +29,12 @@
       </div>
       <!-- Step 8: 로그인 영역 (header-meta 자리 — 상태 캡슐은 제목 위로 이동) -->
       <div class="header-auth">
+        <!-- 문서 바로가기 (파이프라인/기술스택) — 로그인 버튼 아래 작은 글씨 -->
+        <nav class="doc-links" aria-label="프로젝트 문서">
+          <a href="/deploy-pipeline.html" class="doc-link" target="_blank" rel="noopener">배포 파이프라인</a>
+          <span class="doc-sep" aria-hidden="true">·</span>
+          <a href="/tech-stack.html" class="doc-link" target="_blank" rel="noopener">기술 스택</a>
+        </nav>
         <button id="btn-login" class="auth-btn">🔑 로그인</button>
         <div id="auth-user" class="auth-user hidden">
           <span class="auth-user-name" id="auth-user-name"></span>
@@ -496,6 +502,6 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20260831_3"></script>
+  <script src="app.js?v=20260902_1"></script>
 </body>
 </html>
