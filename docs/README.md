@@ -22,6 +22,7 @@
 | **8** | 로그인 시스템 (회원별 이력서 격리) | — | [step8-auth-plan.md](./step8-auth-plan.md) · [step8-auth-worklog.md](./step8-auth-worklog.md) | 회원가입/로그인, 이력서 접근 제어, 개인정보 격리 |
 | **9** | 채용공고 요구사항 매칭 자소서 | — | [step9-recruit-matching-plan.md](./step9-recruit-matching-plan.md) · [step9-recruit-matching-worklog.md](./step9-recruit-matching-worklog.md) | DB/URL/붙여넣기 4계층 소스, 모델 2단(3.5-flash-lite/flash), 근거 기반 매핑 |
 | **9-1** | AI 모델 변경 가이드 | — | [ai-model-config.md](./ai-model-config.md) | 모델 2단 구조, 환경변수 변경법, 지원 모델 목록, 롤백 |
+| **10** | Gitea 전체 소스 업로드 (GitOps) | — | [step10-gitops-gitea-sync.md](./step10-gitops-gitea-sync.md) | 앱 소스 51파일 푸시, push 인증 토큰화, 장애 4건 해결 기록, 표준 배포 절차 |
 
 > **총 기간: 약 1.5주(10~11일)** (Step 7는 후속 기능 확장)
 
@@ -91,7 +92,8 @@ JobMarketRader/
     ├── step7-resume-*.md             # 이력서 관리 (AI 자소서) — design/ai/worklog
     ├── step8-auth-*.md               # 로그인 시스템 — plan(설계)/worklog(수행)
     ├── step9-recruit-matching-*.md  # 채용공고 요구사항 매칭 — plan/worklog
-    └── ai-model-config.md           # AI 모델 변경 가이드 (9-1) — 2단 구조/환경변수/롤백
+    ├── ai-model-config.md           # AI 모델 변경 가이드 (9-1) — 2단 구조/환경변수/롤백
+    └── step10-gitops-gitea-sync.md  # Gitea 전체 소스 업로드 — 배포 순서·장애 해결 기록
 ```
 
 ---
