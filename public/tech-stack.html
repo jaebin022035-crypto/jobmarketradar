@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobMarketRadar · 기술 스택</title>
+<style>
+/* ============ 토큰 — 파이프라인 페이지와 같은 계열(기술문서 그라운드) ============ */
+:root {
+  --ground: #F3F6F5;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAF9;
+  --ink: #17252B;
+  --ink-soft: #55666D;
+  --line: #DCE4E3;
+  --line-strong: #B7C4C3;
+  --accent: #0E7490;
+  --amber: #96550A;
+  --green: #16794A;
+  --red: #B3362B;
+  --violet: #6D28D9;
+  --shadow: 0 1px 2px rgba(23,37,43,.05), 0 4px 14px rgba(23,37,43,.06);
+  --sans: -apple-system, "Segoe UI", "Noto Sans KR", "Malgun Gothic", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "D2Coding", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0C1417; --surface: #131F23; --surface-2: #0F191D;
+    --ink: #E3EBEA; --ink-soft: #8FA2A6; --line: #27383D; --line-strong: #3D5157;
+    --accent: #3EC3DE; --amber: #E8A33D; --green: #57C283; --red: #E5766A; --violet: #A78BFA;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0C1417; --surface: #131F23; --surface-2: #0F191D;
+  --ink: #E3EBEA; --ink-soft: #8FA2A6; --line: #27383D; --line-strong: #3D5157;
+  --accent: #3EC3DE; --amber: #E8A33D; --green: #57C283; --red: #E5766A; --violet: #A78BFA;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.28);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.65; }
+.wrap { max-width: 940px; margin: 0 auto; padding: 48px 22px 72px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+
+header.masthead { margin-bottom: 42px; }
+header.masthead h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -.01em; margin: 10px 0 6px; }
+header.masthead .sub { color: var(--ink-soft); font-size: .95rem; max-width: 64ch; }
+.status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: .72rem; font-weight: 500; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+.pill .dot.v { background: var(--violet); }
+.pill .dot.a { background: var(--amber); }
+
+section { margin-top: 54px; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.sec-head h2 { font-size: 1.12rem; font-weight: 700; }
+.sec-head .no { font-family: var(--mono); font-size: .7rem; color: var(--accent); letter-spacing: .1em; font-weight: 600; }
+.sec-desc { color: var(--ink-soft); font-size: .88rem; max-width: 68ch; margin-bottom: 18px; }
+
+/* ============ 레이어 다이어그램 ============ */
+.layer { display: grid; grid-template-columns: 150px 1fr; gap: 0; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); margin-bottom: 10px; }
+.layer-name { padding: 15px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; gap: 2px; background: var(--surface-2); }
+.layer-name .ln { font-size: .88rem; font-weight: 700; }
+.layer-name .le { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); letter-spacing: .08em; text-transform: uppercase; }
+.layer-body { padding: 12px 16px; }
+.layer[data-tone="front"] { border-left: 3px solid var(--violet); }
+.layer[data-tone="front"] .layer-name .ln { color: var(--violet); }
+.layer[data-tone="back"] { border-left: 3px solid var(--accent); }
+.layer[data-tone="back"] .layer-name .ln { color: var(--accent); }
+.layer[data-tone="data"] { border-left: 3px solid var(--green); }
+.layer[data-tone="data"] .layer-name .ln { color: var(--green); }
+.layer[data-tone="infra"] { border-left: 3px solid var(--ink-soft); }
+
+.tech-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.tech {
+  flex: 1 1 150px; min-width: 140px;
+  border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px;
+  background: var(--surface);
+}
+.tech .tn { font-size: .84rem; font-weight: 650; display: flex; align-items: center; gap: 6px; }
+.tech .tv { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; font-weight: 500; }
+.tech .td { font-size: .74rem; color: var(--ink-soft); line-height: 1.55; margin-top: 3px; }
+
+.flow-mark { display: flex; justify-content: center; padding: 2px 0; }
+.flow-mark span { font-family: var(--mono); font-size: .62rem; color: var(--ink-soft); letter-spacing: .06em; }
+
+/* ============ 상세 카드 ============ */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; box-shadow: var(--shadow); }
+.card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card .why { font-size: .78rem; color: var(--ink-soft); line-height: 1.65; margin-top: 6px; }
+.card .why strong { color: var(--ink); font-weight: 600; }
+.card .why code, .tk { font-family: var(--mono); font-size: .92em; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.tag { font-family: var(--mono); font-size: .6rem; font-weight: 700; letter-spacing: .06em; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; }
+.tag.c { color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.tag.v { color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, transparent); }
+.tag.g { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.tag.a { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.tag.m { color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); }
+
+/* ============ 표 ============ */
+.tbl-wrap { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: .64rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td code { font-family: var(--mono); font-size: .92em; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+td .soft { color: var(--ink-soft); }
+
+/* ============ 수치 ============ */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.metric { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; box-shadow: var(--shadow); }
+.metric .mv { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--accent); }
+.metric .ml { font-size: .74rem; color: var(--ink-soft); margin-top: 2px; line-height: 1.4; }
+
+footer { margin-top: 54px; padding-top: 18px; border-top: 1px solid var(--line); font-size: .76rem; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+footer code { font-family: var(--mono); color: var(--ink); }
+
+@media (max-width: 720px) {
+  .wrap { padding: 34px 16px 56px; }
+  header.masthead h1 { font-size: 1.4rem; }
+  .grid2, .metrics { grid-template-columns: 1fr 1fr; }
+  .layer { grid-template-columns: 1fr; }
+  .layer-name { border-right: 0; border-bottom: 1px solid var(--line); }
+  .tbl-wrap { overflow-x: auto; }
+}
+@media (max-width: 480px) { .grid2, .metrics { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Tech Stack · 2026-08-31 기준</div>
+    <h1>JobMarketRadar 기술 스택</h1>
+    <p class="sub">채용시장 트렌드 대시보드 + AI 자기소개서 작성 도구.
+    외부 SaaS 없이 <strong>Node.js 단일 프로세스</strong>로 프론트·API·수집·AI 호출을 모두 처리하는
+    느슨하지 않은 단일 아키텍처. 각 기술은 "왜 이걸 골랐는가"와 함께 정리했다.</p>
+    <div class="status-row">
+      <span class="pill"><span class="dot"></span>런타임 <code>Node 20</code></span>
+      <span class="pill"><span class="dot v"></span>AI <code>Gemini 2단</code></span>
+      <span class="pill"><span class="dot a"></span>외부 의존 <code>6개 패키지</code></span>
+      <span class="pill"><span class="dot"></span>빌드 <code>멀티스테이지 Docker</code></span>
+    </div>
+  </header>
+
+  <!-- ═══════════ 레이어 전체 모습 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>한눈에 보는 네 층</h2></div>
+    <p class="sec-desc">위에서 아래로 요청이 흐르는 순서. 각 층은 프로세스 하나 안에서 함께 뜬다 — 마이크로서비스가 아니라 계층화된 모놀리스.</p>
+
+    <div class="layer" data-tone="front">
+      <div class="layer-name"><span class="ln">프레젠테이션</span><span class="le">Frontend</span></div>
+      <div class="layer-body"><div class="tech-row">
+        <div class="tech"><div class="tn">바닐라 JS <span class="tv">ES2023</span></div><p class="td">프레임워크 없음 — 번들러·빌드 단계 없이 브라우저에서 직접</p></div>
+        <div class="tech"><div class="tn">Chart.js <span class="tv">4.4.1</span></div><p class="td">유일한 프론트 의존성. 트렌드 차트 6종 렌더링</p></div>
+        <div class="tech"><div class="tn">CSS <span class="tv">단일 파일</span></div><p class="td">다크테마·반응형. CSS 변수로 토큰 관리</p></div>
+      </div></div>
+    </div>
+    <div class="flow-mark"><span>HTTP · JSON — /api/* 로만 통신</span></div>
+
+    <div class="layer" data-tone="back">
+      <div class="layer-name"><span class="ln">애플리케이션</span><span class="le">Backend</span></div>
+      <div class="layer-body"><div class="tech-row">
+        <div class="tech"><div class="tn">Express <span class="tv">4.19</span></div><p class="td">정적파일 + REST API 32개 라우트를 한 서버에</p></div>
+        <div class="tech"><div class="tn">Node crypto <span class="tv">내장</span></div><p class="td">scrypt 해시·세션 토큰 — 외부 암호화 라이브러리 없음</p></div>
+        <div class="tech"><div class="tn">node-cron <span class="tv">3.0</span></div><p class="td">1일 2회(09·21시 KST) 자동 수집 스케줄러</p></div>
+      </div></div>
+    </div>
+    <div class="flow-mark"><span>AI 호출 · XML 파싱 · 동기 쿼리</span></div>
+
+    <div class="layer" data-tone="data">
+      <div class="layer-name"><span class="ln">데이터</span><span class="le">Data</span></div>
+      <div class="layer-body"><div class="tech-row">
+        <div class="tech"><div class="tn">SQLite <span class="tv">WAL 모드</span></div><p class="td">better-sqlite3로 동기 API. 9개 테이블, 파일 하나</p></div>
+        <div class="tech"><div class="tn">고용24 Open API <span class="tv">XML</span></div><p class="td">국민취업지원제도 채용정보 — 유일한 외부 데이터원</p></div>
+        <div class="tech"><div class="tn">Gemini API <span class="tv">REST</span></div><p class="td">자소서 생성·공고 분석. axios로 직접 호출</p></div>
+      </div></div>
+    </div>
+    <div class="flow-mark"><span>PVC 마운트 · 컨테이너 런타임</span></div>
+
+    <div class="layer" data-tone="infra">
+      <div class="layer-name"><span class="ln">인프라</span><span class="le">Runtime</span></div>
+      <div class="layer-body"><div class="tech-row">
+        <div class="tech"><div class="tn">Docker <span class="tv">bookworm-slim</span></div><p class="td">멀티스테이지 빌드. 빌드 도구는 런타임 이미지에 미포함</p></div>
+        <div class="tech"><div class="tn">vcluster/K8s <span class="tv">RKE2</span></div><p class="td">Pod 1개·PVC 영속화. ArgoCD GitOps로 배포</p></div>
+        <div class="tech"><div class="tn">Harbor + Gitea <span class="tv">사내</span></div><p class="td">이미지 레지스트리와 진실의 소스(Git) 분리</p></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 수치 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>규모</h2></div>
+    <p class="sec-desc">작은 프로젝트지만 각 숫자는 검증된 실측값이다.</p>
+    <div class="metrics">
+      <div class="metric"><div class="mv">6</div><div class="ml">npm 프로덕션 의존성</div></div>
+      <div class="metric"><div class="mv">32</div><div class="ml">REST API 라우트</div></div>
+      <div class="metric"><div class="mv">9</div><div class="ml">SQLite 테이블</div></div>
+      <div class="metric"><div class="mv">1691</div><div class="ml">수집된 채용공고 (postings)</div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 선택 이유 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>왜 이 기술인가</h2></div>
+    <p class="sec-desc">각 선택에는 실무적 이유가 있다 — "유명해서"가 아니라 이 프로젝트의 제약에서 나온 판단.</p>
+    <div class="grid2">
+
+      <div class="card">
+        <h3>SQLite + better-sqlite3 <span class="tag g">DATA</span></h3>
+        <p class="why">쓰기가 수집 배치(1일 2회), 읽기가 대시보드 조회 — <strong>트래픽이 동시성을 요구하지 않는다</strong>.
+        PostgreSQL을 두면 컨테이너 하나가 늘고 백업·마이그레이션 이슈가 생긴다.
+        <code>WAL</code> 모드로 읽기-쓰기 잠금 충돌을 피하고, better-sqlite3의 <strong>동기 API</strong> 덕분에
+        쿼리 결과를 그대로 return하는 라우트 코드가 된다 (await 없음). 파일 하나가 곧 백업 본체.</p>
+      </div>
+
+      <div class="card">
+        <h3>바닐라 JS (프레임워크 없음) <span class="tag v">FRONT</span></h3>
+        <p class="why">화면 4개(대시보드·공고목록·인사이트·이력서)로 상태가 단순하다.
+        React를 넣으면 빌드 파이프라인·가상DOM 오버헤드가 생기는데, 이 앱은
+        <strong>데이터가 바뀌면 fetch로 다시 그리는</strong> 패턴으로 충분하다.
+        결과물은 <code>app.js</code> 하나 — CDN에서 Chart.js만 받고 나머지는 전부 서버가 뿌린다.</p>
+      </div>
+
+      <div class="card">
+        <h3>Node 내장 crypto <span class="tag c">AUTH</span></h3>
+        <p class="why">비밀번호는 <code>scrypt</code>(N=16384)로 per-user salt와 함께 해시,
+        세션 토큰은 SHA-256으로 한 번 더 해시해 DB 저장 — <strong>평문 토큰이 디스크에 안 남는다</strong>.
+        bcrypt를 쓰면 native 빌드 이슈가 생기는데, Node 20의 내장 scrypt는
+        OWASP 권장 파라미터를 그대로 쓸 수 있어 <strong>의존성 0개</strong>로 같은 안전성을 얻는다.</p>
+      </div>
+
+      <div class="card">
+        <h3>Gemini 2단 모델 <span class="tag v">AI</span></h3>
+        <p class="why">공고 원문 정제는 기계적이라 <code>flash-lite</code>(빠름·저가)로 충분하고,
+        요건 분석과 자소서 문장 생성은 품질이 곧 상품이라 <code>flash</code>(일반)를 쓴다.
+        두 모델 모두 <strong>JSON 모드와 url_context를 지원</strong>함을 실측하고 도입.
+        SDK 없이 REST로 직접 호출 — 모델 교체는 환경변수 한 줄.</p>
+      </div>
+
+      <div class="card">
+        <h3>멀티스테이지 Docker <span class="tag m">INFRA</span></h3>
+        <p class="why">better-sqlite3는 native 모듈이라 빌드에 python·make·g++이 필요하지만
+        <strong>런타임에는 필요 없다</strong>. 빌드 단계에서만 도구를 깔고
+        <code>node_modules</code>와 정적파일만 최종 이미지로 복사 —
+        이미지가 작고 공격면도 줄어든다.</p>
+      </div>
+
+      <div class="card">
+        <h3>ArgoCD GitOps <span class="tag m">OPS</span></h3>
+        <p class="why">매니페스트는 Git에, 클러스터는 그것을 따라오게(<code>selfHeal</code>) 만들었다.
+        kubectl로 직접 고치면 그 변경은 <strong>언제든 Git에 의해 지워진다</strong> —
+        GEMINI 키 env를 수동 주입했다가 Git과 어긋난 경험 때문에 매니페스트로 옮겼다.
+        배포 이력 = 커밋 이력이라 롤백이 <code>git revert</code>다.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ 데이터 모델 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>데이터 모델 — 9개 테이블</h2></div>
+    <p class="sec-desc">소유 관계가 스키마에 그대로 드러난다. 모든 개인 데이터 조회는 소유자 검사를 통과해야 한다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>테이블</th><th>역할</th><th>관계</th></tr></thead>
+        <tbody>
+          <tr><td><code>job_postings</code></td><td>채용공고 본문 (고용24 수집)</td><td class="soft">→ job_recruits 1:N</td></tr>
+          <tr><td><code>job_recruits</code></td><td>모집직무 상세 (직무·자격·우대)</td><td class="soft">posting_id로 연결</td></tr>
+          <tr><td><code>collection_snapshots</code></td><td>수집 시점별 요약 스냅샷</td><td class="soft">트렌드 차트의 원천</td></tr>
+          <tr><td><code>collection_logs</code></td><td>수집 실행 이력·성공 여부</td><td class="soft">대시보드 "실시간 수집" 표시</td></tr>
+          <tr><td><code>users</code></td><td>회원 — 이름·아이디·scrypt 해시</td><td class="soft">→ profiles 1:N</td></tr>
+          <tr><td><code>sessions</code></td><td>해시된 세션 토큰·만료시각</td><td class="soft">user_id FK, 7일 만료</td></tr>
+          <tr><td><code>profiles</code></td><td>경력·스택 등 사용자 프로필</td><td class="soft">user_id FK — 소유자 스코프</td></tr>
+          <tr><td><code>cover_letters</code></td><td>자소서 5항목 + Step9 req_* 5컬럼</td><td class="soft">profile_id FK, ON DELETE CASCADE</td></tr>
+          <tr><td><code>generation_logs</code></td><td>AI 생성 이력 — 모델명·토큰수</td><td class="soft">cover_letter_id FK</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════ API ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>API 구성 — 32개 라우트</h2></div>
+    <p class="sec-desc">영역별로 묶은 REST 엔드포인트. 프로필·자소서·AI 영역은 전부 로그인 필요(401).</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>영역</th><th>엔드포인트</th><th>인증</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="1">통계</td><td><code>/api/summary</code> <code>/api/trends/*</code> <code>/api/insight/*</code></td><td><span class="tag m">공개</span></td></tr>
+          <tr><td>공고</td><td><code>/api/postings</code> <code>/api/postings/:id</code> <code>…/goto</code></td><td><span class="tag m">공개</span></td></tr>
+          <tr><td>인증</td><td><code>/api/auth/register</code> <code>login</code> <code>logout</code> <code>me</code></td><td><span class="tag m">공개/세션</span></td></tr>
+          <tr><td>프로필</td><td><code>/api/profiles</code> CRUD 5종 + <code>/api/target-jobs</code></td><td><span class="tag c">필수</span></td></tr>
+          <tr><td>자소서</td><td><code>/api/cover-letters</code> CRUD 5종</td><td><span class="tag c">필수</span></td></tr>
+          <tr><td>AI</td><td><code>/api/cover-letters/:id/generate</code> <code>regenerate</code></td><td><span class="tag c">필수</span></td></tr>
+          <tr><td>공고 매칭</td><td><code>/api/companies/search</code> <code>/api/postings/:id/requirements</code> <code>/api/ai/fetch-url</code> <code>/api/ai/analyze-requirements</code></td><td><span class="tag c">필수</span></td></tr>
+          <tr><td>운영</td><td><code>/api/admin/collect</code></td><td><span class="tag a">관리</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════ 보안 ═══════════ -->
+  <section>
+    <div class="sec-head"><span class="no">§</span><h2>보안 설계</h2></div>
+    <p class="sec-desc">Step 8에서 세운 원칙들. 전부 코드로 검증된 동작이다.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>소유자 스코프 <span class="tag c">ISOLATION</span></h3>
+        <p class="why">모든 프로필·자소서 쿼리가 <code>ownerId</code>를 같이 받는다.
+        남의 리소스에 접근하면 <strong>403이 아니라 404</strong>로 응답 —
+        존재 자체를 노출하지 않아 ID 열거 공격(enumeration)이 불가능하다.</p>
+      </div>
+      <div class="card">
+        <h3>차단 도메인 정책 <span class="tag a">CRAWL</span></h3>
+        <p class="why">사람인·원티드는 AI URL 조회에서 자동 제외된다
+        (robots.txt·CloudFront 실측 근거). 서버가 채용 사이트를 <strong>직접 fetch하지 않는다</strong> —
+        IP 차단 위험과 무관하게 지키는 원칙.</p>
+      </div>
+      <div class="card">
+        <h3>시크릿 관리 <span class="tag a">SECRET</span></h3>
+        <p class="why">API 키는 환경변수로만 주입. Git·이미지 어디에도 존재하지 않으며
+        커밋 전 <strong>실제 키 값으로 전체 파일 대조</strong>하는 검사를 돌린다.
+        쿠키는 <code>HttpOnly + SameSite=Lax</code>.</p>
+      </div>
+      <div class="card">
+        <h3>로그인 실패 응답 통일 <span class="tag c">AUTH</span></h3>
+        <p class="why">아이디 불일치·비밀번호 불일치를 <strong>같은 메시지</strong>로 응답해
+        어떤 계정이 존재하는지 추측하게 하지 않는다. 가입 중복만 409로 구분.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>JobMarketRadar Tech Stack — <code>package.json</code> · <code>db/schema.sql</code> 기준</span>
+    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code></span>
+  </footer>
+
+</div>
+</body>
+</html>
