@@ -119,6 +119,7 @@ body {
   position: absolute; right: 0; top: calc(100% + 6px);
   display: flex; align-items: center; gap: 6px;
   white-space: nowrap;
+  margin-right: 15px;
 }
 .header-auth { position: relative; }
 .doc-link {
