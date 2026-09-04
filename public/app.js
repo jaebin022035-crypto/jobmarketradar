@@ -28,10 +28,25 @@ async function api(path, opts = {}) {
   const text = await res.text();
   if (!res.ok) {
     let msg = `API ${res.status} (${rel})`;
-    try { msg += ': ' + JSON.parse(text).error; } catch { /* 본문 없으면 상태만 */ }
-    throw new Error(msg);
+    let code = null;
+    let serverMsg = null;
+    try {
+      const j = JSON.parse(text);
+      msg += ': ' + (j.error || '');
+      code = j.code || null;
+      serverMsg = j.error || null;
+    } catch { /* 본문 없으면 상태만 */ }
+    const err = new Error(msg);
+    err.code = code;
+    err.serverMsg = serverMsg;
+    throw err;
   }
   return text ? JSON.parse(text) : null;
+}
+
+// AI 과부하(503 AI_BUSY) 공통 안내 — 폴백 모델까지 포화된 일시 장애
+function isAiBusyError(e) {
+  return e && (e.code === 'AI_BUSY' || /혼잡|잠시 후 다시/i.test(e.serverMsg || e.message || ''));
 }
 
 // null-safe 이벤트 바인딩 — 요소가 없으면 조용히 스킵 (캐시 불일치/뷰 미로딩 대비)
@@ -1127,6 +1142,11 @@ async function fetchUrlRequirements() {
     status.className = 'req-status ok'; status.textContent = '✓ 요구사항을 가져왔습니다.';
   } catch (e) {
     status.className = 'req-status err';
+    // 과부하는 일시 장애 — 붙여넣기 전환 없이 잠시 후 재시도 안내만
+    if (isAiBusyError(e)) {
+      status.textContent = '⚠ ' + (e.serverMsg || e.message);
+      return;
+    }
     status.innerHTML = escapeHTML(e.message) + '<br>→ <strong>③ 붙여넣기</strong>로 공고 내용을 직접 넣어주세요.';
     // 실패 시 붙여넣기 탭으로 자동 전환 (요구사항 없을 때만)
     if (!resumeState.req) {
@@ -1154,7 +1174,8 @@ async function analyzePaste() {
     if (co && !co.value.trim() && r.bundle.company) co.value = r.bundle.company;
     status.className = 'req-status ok'; status.textContent = '✓ 분석 완료! 아래 미리보기를 확인·수정해주세요.';
   } catch (e) {
-    status.className = 'req-status err'; status.textContent = e.message;
+    status.className = 'req-status err';
+    status.textContent = isAiBusyError(e) ? ('⚠ ' + (e.serverMsg || e.message)) : e.message;
   }
 }
 
@@ -1224,8 +1245,8 @@ function renderProfileList() {
     return;
   }
   el.innerHTML = resumeState.profiles.map((p) => `
-    <div class="resume-profile-item ${p.id === resumeState.currentProfileId ? 'active' : ''}" data-id="${p.id}">
-      <div class="rp-main" data-act="select" data-id="${p.id}">
+    <div class="resume-profile-item ${p.id === resumeState.currentProfileId ? 'active' : ''}" data-act="select" data-id="${p.id}">
+      <div class="rp-main">
         <span class="rp-name">${escapeHTML(p.name)}</span>
         <span class="rp-count">자소서 ${p.letter_count || 0}개</span>
       </div>
@@ -1579,7 +1600,11 @@ function bindResumeEvents() {
       openEditor(c);
       setStatus(generationResultMessage(), false);
       setStep('내용 확인·수정 후 💾 저장');
-    } catch (e) { setStatus('생성 실패: ' + e.message + ' (재시도 가능)', true); }
+    } catch (e) {
+      // 과부하(503 AI_BUSY) — 일시 장애 안내
+      if (isAiBusyError(e)) return setStatus('⚠ ' + (e.serverMsg || e.message), true);
+      setStatus('생성 실패: ' + e.message + ' (재시도 가능)', true);
+    }
     finally { setLoading(false); }
   });
 
@@ -1596,7 +1621,10 @@ function bindResumeEvents() {
       openEditor(c);
       setStatus(generationResultMessage(), false);
       setStep('내용 확인·수정 후 💾 저장');
-    } catch (e) { setStatus('재생성 실패: ' + e.message + ' (재시도 가능)', true); }
+    } catch (e) {
+      if (isAiBusyError(e)) return setStatus('⚠ ' + (e.serverMsg || e.message), true);
+      setStatus('재생성 실패: ' + e.message + ' (재시도 가능)', true);
+    }
     finally { setLoading(false); }
   });
 

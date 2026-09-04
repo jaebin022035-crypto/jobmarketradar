@@ -672,6 +672,11 @@ function createApp() {
       if (e.code === 'AI_URL_FAIL' || e.code === 'AI_URL_PARSE') {
         return res.status(422).json({ error: e.message, fallback: 'paste' });
       }
+      // ★ 과부하(폴백까지 실패) → 일시 장애 안내 (프론트가 "잠시 후 다시 시도" 표시)
+      if (e.code === 'AI_BUSY') {
+        console.error('[fetch-url] AI 과부하:', e.cause || e.message);
+        return res.status(503).json({ error: e.message, code: 'AI_BUSY' });
+      }
       console.error('[fetch-url]', e.message);
       const status = e.code === 'AI_NO_KEY' ? 503 : 500;
       res.status(status).json({ error: e.message });
@@ -692,6 +697,10 @@ function createApp() {
       res.json({ bundle: r.bundle, models: r.models, cleanedPreview: r.cleanedPreview });
     } catch (e) {
       console.error('[analyze-requirements]', e.message);
+      if (e.code === 'AI_BUSY') {
+        console.error('[analyze-requirements] AI 과부하:', e.cause || '');
+        return res.status(503).json({ error: e.message, code: 'AI_BUSY' });
+      }
       const status = e.code === 'AI_NO_KEY' ? 503 : (e.code === 'AI_PASTE_SHORT' || e.code === 'AI_PASTE_PARSE' ? 400 : 500);
       res.status(status).json({ error: e.message });
     }
@@ -753,6 +762,8 @@ function createApp() {
         model: ai.DEFAULT_MODEL, target_job: cl.target_job,
         status: 'fail', error: e.message,
       });
+      // ★ 과부하는 일시 장애 — 프론트에 code 를 싣어 "잠시 후 다시 시도" 안내
+      if (e.code === 'AI_BUSY') return { status: 503, body: { error: e.message, code: 'AI_BUSY' } };
       const status = e.code === 'AI_NO_KEY' ? 503 : 500;
       return { status, body: { error: e.message } };
     }

@@ -37,6 +37,53 @@ const BLOCKED_URL_DOMAINS = ['saramin.co.kr', 'wanted.co.kr'];
 const MAX_PASTE_CHARS = 8000;
 
 // ---------- 공통 호출기 ----------
+/** Gemini 과부하 상태코드 (503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED) */
+function isOverloadStatus(status) {
+  return status === 503 || status === 429;
+}
+
+/**
+ * 과부하 폴백 — 요청을 flash-lite(MODEL_PIPE)로 1회 재시도.
+ * lite 조차 과부하면 AI_BUSY 에러로 바꿔 "잠시 후 다시 시도" 안내가 뜨게 한다.
+ * (lite 는 기본 모델이 아닐 때만 폴백 대상 — PIPE 모델 자체가 과부하인 경우는 재시도 무의미)
+ */
+async function callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg }) {
+  if (model === MODEL_PIPE) {
+    const err = new Error('AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.');
+    err.code = 'AI_BUSY';
+    err.status = 503;
+    throw err;
+  }
+  const url = `${BASE}/models/${MODEL_PIPE}:generateContent?key=${API_KEY}`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {},
+  };
+  if (jsonMode) body.generationConfig.responseMimeType = 'application/json';
+  if (temperature !== undefined) body.generationConfig.temperature = temperature;
+  if (tools) body.tools = tools;
+
+  try {
+    const resp = await axios.post(url, body, { timeout: timeoutMs });
+    const text = extractText(resp.data);
+    if (text.trim()) return { text, usage: resp.data?.usageMetadata || {}, model: MODEL_PIPE };
+    throw new Error('빈 응답');
+  } catch (e) {
+    const status = e.response?.status;
+    // lite 폴백도 과부하/실패 → 사용자 안내용 AI_BUSY 로 통일
+    const err = new Error('AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.');
+    err.code = 'AI_BUSY';
+    err.status = 503;
+    err.cause = `fallback(${MODEL_PIPE}) 실패 (HTTP ${status || '-'}): ${rawMsg}`;
+    throw err;
+  }
+}
+
+/** generateContent 응답에서 텍스트 부분만 추출 */
+function extractText(data) {
+  return data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+}
+
 /**
  * Gemini generateContent 공통 호출.
  * @param {object} opts { model, prompt, jsonMode, tools, temperature, timeoutMs }
@@ -65,18 +112,22 @@ async function callGemini({ model, prompt, jsonMode = false, tools, temperature,
   } catch (e) {
     const status = e.response?.status;
     const msg = e.response?.data?.error?.message || e.message;
+    // ★ 과부하(503/429)/타임아웃이면 flash-lite 로 1회 폴백 — 프리 티어 모델이 함께 다운되는 일은 드물다
+    if (isOverloadStatus(status) || e.code === 'ECONNABORTED') {
+      return callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg: msg });
+    }
     const err = new Error(`Gemini API 호출 실패${status ? ` (HTTP ${status})` : ''}: ${msg}`);
     err.code = 'AI_CALL_FAIL';
     err.status = status;
     throw err;
   }
 
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  const text = extractText(data);
   if (!text.trim()) {
     const blockReason = data?.promptFeedback?.blockReason;
     throw new Error(`Gemini 응답에 텍스트가 없습니다.${blockReason ? ` (차단 사유: ${blockReason})` : ''}`);
   }
-  return { text, usage: data?.usageMetadata || {} };
+  return { text, usage: data?.usageMetadata || {}, model };
 }
 
 // JSON 파싱 방어 (코드블록/잡음 제거 후 재시도)
@@ -133,7 +184,7 @@ URL: ${url}
   "notes": ["근무지역/고용형태 등 기타 정보"]
 }`;
 
-  const { text } = await callGemini({
+  const { text, model: usedModel } = await callGemini({
     model: MODEL_QUALITY, prompt, tools: [{ url_context: {} }], timeoutMs: 90000,
   });
 
@@ -169,9 +220,9 @@ URL: ${url}
       required: (parsed.required || []).map(String),
       preferred: (parsed.preferred || []).map(String),
       notes: (parsed.notes || []).map(String),
-      meta: { source: 'url', url },
+      meta: { source: 'url', url, model: usedModel },
     },
-    model: MODEL_QUALITY,
+    model: usedModel,
   };
 }
 
@@ -220,11 +271,11 @@ ${cleanedText}
   "notes": ["근무지역/고용형태 등 기타"]
 }`;
 
-  const struct = await callGemini({
+  const { text: structText, model: structModel } = await callGemini({
     model: MODEL_QUALITY, prompt: structPrompt, jsonMode: true, timeoutMs: 60000,
   });
 
-  const parsed = parseJsonLoose(struct.text);
+  const parsed = parseJsonLoose(structText);
   if (!Array.isArray(parsed.duties) && !Array.isArray(parsed.required)) {
     const err = new Error('붙여넣은 내용에서 채용공고 요구사항을 찾지 못했습니다. 모집분야와 자격요건을 포함해 다시 붙여넣어 주세요.');
     err.code = 'AI_PASTE_PARSE';
@@ -239,9 +290,9 @@ ${cleanedText}
       required: (parsed.required || []).map(String),
       preferred: (parsed.preferred || []).map(String),
       notes: (parsed.notes || []).map(String),
-      meta: { source: 'paste' },
+      meta: { source: 'paste', model: structModel },
     },
-    models: [MODEL_PIPE, MODEL_QUALITY],
+    models: [MODEL_PIPE, structModel],
     cleanedPreview: cleanedText.slice(0, 500),
   };
 }
@@ -290,7 +341,7 @@ function formatRequirementsBlock(bundle) {
 async function generate(prompt, opts = {}) {
   const model = opts.model || MODEL_QUALITY;
 
-  const { text, usage } = await callGemini({
+  const { text, usage, model: usedModel } = await callGemini({
     model,
     prompt,
     jsonMode: true,
@@ -311,7 +362,7 @@ async function generate(prompt, opts = {}) {
     strength: parsed.strength || '',
     career: parsed.career || '',
     vision: parsed.vision || '',
-    _meta: { model, tokens: usage.totalTokenCount || 0 },
+    _meta: { model: usedModel, tokens: usage.totalTokenCount || 0 },
   };
 }
 
