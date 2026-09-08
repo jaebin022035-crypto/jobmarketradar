@@ -4,9 +4,8 @@
 # - better-sqlite3 네이티브 모듈 컴파일 → 멀티스테이지로 빌드 도구는 런타임에 남기지 않음
 # - data/ 는 런타임 볼륨으로 마운트 (이미지에 넣지 않음 → 배포마다 데이터 날아가는 것 방지)
 #
-# 참고: 이 환경(labport)에는 Docker가 없어 실제 빌드/실행은 하지 않음.
-#       산출물로서 "어디서든 동일하게 실행 가능한 컨테이너 정의"를 남긴 것.
-#       로컬 검증은 docker compose up --build 로 (Step 6 문서 4절).
+# 참고: 이 환경에서 docker build → Harbor push → kubectl rollout restart 로 배포함
+#       (2026-09-08 실측: docker 29.3.1 사용 가능. 상세 절차는 배포 문서 참조).
 
 # ---------- 1단계: 빌드 (의존성 + 네이티브 컴파일) ----------
 FROM node:20-bookworm-slim AS build
