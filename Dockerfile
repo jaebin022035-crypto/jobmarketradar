@@ -43,6 +43,8 @@ COPY --from=build /app/collector.js ./
 COPY --from=build /app/ai.js ./
 # Step 8: 로그인/세션 모듈 (누락 시 서버 기동 실패 — server.js 가 require)
 COPY --from=build /app/auth.js ./
+# Step 9.5: 사람인 직접 스크레이퍼 (누락 시 서버 기동 실패 — server.js 가 require)
+COPY --from=build /app/scraper.js ./
 COPY --from=build /app/db ./db
 COPY --from=build /app/public ./public
 
