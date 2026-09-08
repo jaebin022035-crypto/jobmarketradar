@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { parseSaramin, extractSaraminFreeformText, normalizeSaraminUrl } = require('../scraper');
+const { parseSaramin, extractSaraminFreeformText, extractSaraminImages, normalizeSaraminUrl } = require('../scraper');
 
 let pass = 0, fail = 0;
 function check(name, cond, detail) {
@@ -36,6 +36,10 @@ if (fs.existsSync(fx('saramin-54211558.html'))) {
   check('전형절차 (notes)', b.notes.some((x) => x.includes('서류접수 → 사전 과제')));
   check('페이지 노이즈 미포함 (조회수/태그/푸터)', !JSON.stringify(b).includes('조회수') && !JSON.stringify(b).includes('#백엔드'));
   check('meta', b.meta.source === 'url' && b.meta.scraper === 'saramin');
+  // 중복 제거 (2026-09-08): info-block 원문과 tooltip 병합분이 불릿/공백 차이로 두 벌 들어오는 것 방지
+  const norm = (arr) => arr.map((x) => x.replace(/^[-•·▪○●*]\s*/, '').replace(/\s+/g, ''));
+  check('required 불릿/공백 정규화 중복 없음', new Set(norm(b.required)).size === b.required.length);
+  check('preferred 불릿/공백 정규화 중복 없음', new Set(norm(b.preferred)).size === b.preferred.length);
 } else {
   console.log('  ⏭ fixture 없음 — 생략');
 }
@@ -50,6 +54,22 @@ if (fs.existsSync(fx('saramin-54831243-freeform.html'))) {
   check('원문 텍스트 추출 (AI 폴백 입력용)', raw.includes('자격요건') && raw.includes('InnoProduct'), raw.slice(0, 60));
 } else {
   console.log('  ⏭ fixture 없음 — 생략');
+}
+
+console.log('\n[4] 공고 이미지 추출 (OCR 폴백 입력용)');
+{
+  const f1 = fx('saramin-54831243-freeform.html');
+  if (fs.existsSync(f1)) {
+    const imgs = extractSaraminImages(fs.readFileSync(f1, 'utf8'));
+    check('본문 이미지 URL 추출 (data-src 포함)', imgs.length >= 3 && imgs.some((u) => u.includes('saraminimage.co.kr/recruit/')), JSON.stringify(imgs.slice(0, 2)));
+    check('배너·아이콘 제외 (saraminbanner/template_icon)', !imgs.some((u) => /saraminbanner|template_icon/.test(u)));
+    check('프로토콜 상대 URL 절대화 (// → https://)', !imgs.some((u) => u.startsWith('//')));
+  }
+  const f2 = fx('saramin-54211558.html');
+  if (fs.existsSync(f2)) {
+    const imgs2 = extractSaraminImages(fs.readFileSync(f2, 'utf8'));
+    check('템플릿형 공고도 이미지 후보 수집 가능', Array.isArray(imgs2));
+  }
 }
 
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);

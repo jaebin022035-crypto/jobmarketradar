@@ -48,7 +48,7 @@ function isOverloadStatus(status) {
  * lite 조차 과부하면 AI_BUSY 에러로 바꿔 "잠시 후 다시 시도" 안내가 뜨게 한다.
  * (lite 는 기본 모델이 아닐 때만 폴백 대상 — PIPE 모델 자체가 과부하인 경우는 재시도 무의미)
  */
-async function callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg }) {
+async function callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg, images }) {
   if (model === MODEL_PIPE) {
     const err = new Error('AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.');
     err.code = 'AI_BUSY';
@@ -56,8 +56,15 @@ async function callGeminiOnFallback({ model, prompt, jsonMode, tools, temperatur
     throw err;
   }
   const url = `${BASE}/models/${MODEL_PIPE}:generateContent?key=${API_KEY}`;
+  // 이미지(vision) 파트 동일 지원 (과부하 폴백에서도 OCR 이미지 유지)
+  const parts = [{ text: prompt }];
+  if (Array.isArray(images) && images.length) {
+    for (const im of images) {
+      if (im && im.data) parts.push({ inlineData: { mimeType: im.mimeType || 'image/png', data: im.data } });
+    }
+  }
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: {},
   };
   if (jsonMode) body.generationConfig.responseMimeType = 'application/json';
@@ -87,10 +94,11 @@ function extractText(data) {
 
 /**
  * Gemini generateContent 공통 호출.
- * @param {object} opts { model, prompt, jsonMode, tools, temperature, timeoutMs }
+ * @param {object} opts { model, prompt, jsonMode, tools, temperature, timeoutMs, images }
+ *   images: [{ mimeType, data(base64) }] — vision 입력 (이미지 공고 OCR 전사 등)
  * @returns {{text: string, usage: object}} 응답 텍스트 (빈 경우 throw)
  */
-async function callGemini({ model, prompt, jsonMode = false, tools, temperature, timeoutMs = 60000 }) {
+async function callGemini({ model, prompt, jsonMode = false, tools, temperature, timeoutMs = 60000, images }) {
   if (!API_KEY) {
     const err = new Error('GEMINI_API_KEY 가 서버에 설정되지 않았습니다. (.env 또는 Secret 확인)');
     err.code = 'AI_NO_KEY';
@@ -98,8 +106,15 @@ async function callGemini({ model, prompt, jsonMode = false, tools, temperature,
   }
   const url = `${BASE}/models/${model}:generateContent?key=${API_KEY}`;
 
+  // 이미지(vision) 파트가 있으면 텍스트 뒤에 inlineData 로 첨부
+  const parts = [{ text: prompt }];
+  if (Array.isArray(images) && images.length) {
+    for (const im of images) {
+      if (im && im.data) parts.push({ inlineData: { mimeType: im.mimeType || 'image/png', data: im.data } });
+    }
+  }
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: {},
   };
   if (jsonMode) body.generationConfig.responseMimeType = 'application/json';
@@ -115,7 +130,7 @@ async function callGemini({ model, prompt, jsonMode = false, tools, temperature,
     const msg = e.response?.data?.error?.message || e.message;
     // ★ 과부하(503/429)/타임아웃이면 flash-lite 로 1회 폴백 — 프리 티어 모델이 함께 다운되는 일은 드물다
     if (isOverloadStatus(status) || e.code === 'ECONNABORTED') {
-      return callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg: msg });
+      return callGeminiOnFallback({ model, prompt, jsonMode, tools, temperature, timeoutMs, rawMsg: msg, images });
     }
     const err = new Error(`Gemini API 호출 실패${status ? ` (HTTP ${status})` : ''}: ${msg}`);
     err.code = 'AI_CALL_FAIL';
@@ -135,7 +150,23 @@ async function callGemini({ model, prompt, jsonMode = false, tools, temperature,
 function parseJsonLoose(text) {
   try { return JSON.parse(text); } catch { /* 아래로 */ }
   const cleaned = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(cleaned);
+  try { return JSON.parse(cleaned); } catch { /* 아래로 */ }
+  // 모델이 JSON 뒤에 설명문을 덧붙인 경우 — 첫 '{' 부터 짝이 맞는 마지막 '}' 까지 슬라이스
+  // (실측: "Unexpected non-whitespace character after JSON" 케이스)
+  const start = cleaned.indexOf('{');
+  if (start !== -1) {
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < cleaned.length; i++) {
+      const c = cleaned[i];
+      if (esc) { esc = false; continue; }
+      if (c === '\\') { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === '{') depth++;
+      else if (c === '}') { depth--; if (depth === 0) return JSON.parse(cleaned.slice(start, i + 1)); }
+    }
+  }
+  throw new SyntaxError('AI 응답에서 JSON을 찾지 못했습니다');
 }
 
 /* ============================================================
@@ -314,6 +345,37 @@ ${cleanedText}
 }
 
 /* ============================================================
+   Step 9.5b: 이미지 공고 OCR — vision 전사 (원문 그대로)
+   ============================================================ */
+
+/**
+ * 공고 이미지(base64 배열)를 Gemini vision 으로 **글자 그대로 전사**.
+ * 전사 결과는 기존 2단 파이프라인(analyzeRequirementsText) 입력으로 들어가
+ * 분류만 AI가 수행한다 — 문장 보존 원칙은 붙여넣기 경로와 동일.
+ *
+ * @param {Array<{mimeType: string, data: string}>} images base64 인라인 이미지
+ * @returns {Promise<{text: string, model: string}>} 전사 원문 텍스트
+ */
+async function transcribeImages(images) {
+  if (!Array.isArray(images) || !images.length) {
+    const err = new Error('전사할 이미지가 없습니다.');
+    err.code = 'AI_OCR_NO_IMAGE';
+    throw err;
+  }
+  const prompt = `아래 이미지들은 채용공고를 캡처한 것이다. 이미지에 적힌 모든 글자를 **위에서부터 아래로, 왼쪽에서 오른쪽으로, 글자 그대로** 전사하라.
+
+규칙:
+- 글자를 고치거나, 요약하거나, 재작성하거나, 번역하지 마라. 잘린 글자도 눈에 보이는 대로.
+- 줄바꿈은 이미지의 시각적 줄을 따라라.
+- 여러 이미지가 있으면 순서대로 이어서 전사하고, 이미지 사이에 구분선을 넣지 마라.
+- 이미지에 없는 내용을 지어내지 마라.
+- 결과는 전사 텍스트만 출력해라 (설명·코멘트 금지).`;
+
+  const { text, model } = await callGemini({ model: MODEL_QUALITY, prompt, images, timeoutMs: 90000 });
+  return { text: text.trim(), model };
+}
+
+/* ============================================================
    Step 7: 자소서 생성 (Step 9: 요구사항 근거 기반 매핑 추가)
    ============================================================ */
 
@@ -468,4 +530,6 @@ module.exports = {
   MODEL_PIPE, MODEL_QUALITY, MAX_PASTE_CHARS, BLOCKED_URL_DOMAINS,
   // 요구사항 소스 (Step 9)
   fetchUrlRequirements, analyzeRequirementsText, isBlockedUrl,
+  // 이미지 공고 OCR (Step 9.5b)
+  transcribeImages,
 };

@@ -81,9 +81,22 @@ function stripBullet(l) {
   return l.replace(/^[-•·▪○●*]\s*/, '').trim();
 }
 
-/** 번들 조립 — 모든 소스가 이 형태로 수렴 (db.getPostingRequirements 와 동일 스키마) */
+/** 번들 조립 — 모든 소스가 이 형태로 수렴 (db.getPostingRequirements 와 동일 스키마).
+ *  중복 제거: info-block 원문과 tooltip 병합분이 "• 불릿/공백 차이만 나는 같은 문장"으로
+ *  두 벌 들어오는 경우가 있다 — 원문 형태 그대로 보존하되 정규화 키(불릿·공백 제거)로 dedupe. */
 function buildBundle({ company, position, duties, required, preferred, notes, meta }) {
-  const dedupe = (arr) => [...new Set((arr || []).filter(Boolean))];
+  const normKey = (s) => String(s).replace(/^[-•·▪○●*]\s*/, '').replace(/\s+/g, '');
+  const dedupe = (arr) => {
+    const seen = new Set();
+    const out = [];
+    for (const x of (arr || [])) {
+      if (!x) continue;
+      const k = normKey(x);
+      if (!k || seen.has(k)) continue;
+      seen.add(k); out.push(x); // 첫 등장 형태(원문)를 그대로 남긴다
+    }
+    return out;
+  };
   return {
     company: company || '',
     position: position || '',
@@ -94,7 +107,6 @@ function buildBundle({ company, position, duties, required, preferred, notes, me
     meta,
   };
 }
-
 // ---------- 사람인 파서 ----------
 // 실측 구조 (2026-09-08, rec_idx=54211558 — 토스뱅크 Server Developer):
 //   ① 공고 본문 템플릿: .info-block__title (📋 주요업무 / 📋 자격요건 / 🏠 근무조건 / 🚀 채용절차 …)
@@ -208,9 +220,11 @@ function parseSaramin(html, url) {
   // --- 자격요건 내 "[우대]" 마커 이후 행은 우대로 이동 (공고사가 한 섹션에 같이 쓰는 경우) ---
   splitRequiredByMarkers(required, preferred);
 
-  // --- 최소 검증: 본문에서 공고다운 내용을 못 찾으면 실패 (→ 붙여넣기 폴백) ---
-  if (!duties.length && !required.length && !preferred.length) {
-    const err = new Error('사람인 공고에서 본문(주요업무/자격요건)을 찾지 못했습니다. 공고가 마감·삭제되었거나 비공개 처리되었을 수 있습니다.');
+  // --- 최소 검증: 본문(info-block)에서 주요업무·자격요건을 못 찾으면 실패 → AI 텍스트/OCR 폴백.
+  //     preferred(tooltip 등록형 우대)만 있는 것은 "본문을 읽은 것"이 아니다 —
+  //     표·이미지 본문 공고가 우대만 뽑고 성공하는 것을 막는다 (실측: rec_idx 54956415).
+  if (!duties.length && !required.length) {
+    const err = new Error('사람인 공고 본문(주요업무/자격요건)을 구조적으로 읽지 못했습니다.');
     err.code = 'SCRAPE_EMPTY';
     throw err;
   }
@@ -234,32 +248,139 @@ function extractSaraminFreeformText(html) {
   return lines.join('\n');
 }
 
-/** 스크레이핑으로 구조를 못 잡은 사람인 공고 → 원문 텍스트를 AI 2단 파이프라인(정제→구조화)로 분류.
- *  원문 문장은 그대로 두고 분류만 AI가 수행 (붙여넣기 경로와 동일한 원문 보존 프롬프트).
- *  @returns {Promise<{bundle: object, via: 'scraper+ai'}|null>} 폴백 불가(원문 없음)면 null */
-async function saraminAiFallback(html, url) {
-  const rawText = extractSaraminFreeformText(html);
-  if (rawText.trim().length < 30) return null;
+/** user_content 영역 안의 공고 본문 이미지 URL 목록 (data-src 지연로딩 포함).
+ *  사람인 CDN(saraminimage.co.kr / alba.kr 등) 이미지 중 본문 컨테이너에 있는 것만 —
+ *  배너·아이콘(saraminbanner, template_icon, ai_pass 등)은 제외.
+ *  @returns {string[]} 절대 URL 배열 (빈 배열이면 이미지 없음) */
+function extractSaraminImages(html) {
+  const i = html.search(/class="user_content[^"]*"/);
+  if (i === -1) return [];
+  const j = html.indexOf('jv_footer', i);
+  const seg = html.slice(i, j === -1 ? undefined : j);
 
-  let result;
-  try {
-    result = await getAi().analyzeRequirementsText(rawText);
-  } catch (e) {
-    // AI 폴백 실패(과부하 등)는 원폭 폴백 안내가 아니라 원 상태 코드 그대로 전달
-    if (e.code === 'AI_BUSY') throw e;
-    const err = new Error('공고 원문을 가져왔지만 자동 분류에 실패했습니다. ③ 붙여넣기에 공고 내용을 직접 넣어주세요.');
-    err.code = 'SCRAPE_PARSE';
-    err.cause = e.message;
-    throw err;
+  const urls = [];
+  for (const m of seg.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const ms = tag.match(/(?:data-src|src)="([^"]+)"/i);
+    if (!ms) continue;
+    let u = decodeEntities(ms[1]).trim();
+    if (!u || u.startsWith('data:')) continue;
+    if (u.startsWith('//')) u = 'https:' + u;
+    if (!/^https?:\/\//.test(u)) continue;
+    // 본문 컨테이너 안이어도 페이지 장식은 제외 — 공고 본문 이미지가 아닌 것들
+    if (/saraminbanner|template_icon|ai_pass|\/logo\/|spacer|blank\.(gif|png)/i.test(u)) continue;
+    urls.push(u);
+  }
+  return [...new Set(urls)];
+}
+
+/** 공고 이미지 URL 배열 → base64 인라인 이미지 배열 (다운로드).
+ *  개별 실패는 건너뛴다 (일부 이미지만 있어도 부분 전사가 낫다).
+ *  총량 제한: 8장·장당 4MB — Gemini inlineData 제약 내에서 안전하게. */
+async function downloadImages(urls) {
+  const out = [];
+  for (const u of urls.slice(0, 8)) {
+    try {
+      const resp = await axios.get(u, {
+        timeout: 15000,
+        maxContentLength: 4 * 1024 * 1024,
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          Referer: 'https://www.saramin.co.kr/',
+          Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        },
+      });
+      const mime = String(resp.headers['content-type'] || '').split(';')[0].trim();
+      if (!/^image\//i.test(mime)) continue; // HTML 오류 페이지 등
+      out.push({ mimeType: mime, data: Buffer.from(resp.data).toString('base64') });
+    } catch { /* 개별 실패 무시 */ }
+  }
+  return out;
+}
+
+/** 스크레이핑으로 구조를 못 잡은 사람인 공고 → 폴백 체인:
+ *   ① 원문 텍스트(user_content) → AI 2단 분류
+ *   ② 텍스트가 부족하거나 ① 분류가 실패/비었으면 공고 이미지 → vision OCR 전사 → AI 2단 분류
+ *  원문 문장은 그대로 두고 분류만 AI가 수행 (붙여넣기 경로와 동일한 원문 보존 프롬프트).
+ *  @returns {Promise<{bundle: object, via: 'scraper+ai'|'scraper+ocr'}|null>} 폴백 불가(원문 없음)면 null */
+async function saraminAiFallback(html, url) {
+  let rawText = extractSaraminFreeformText(html);
+  let via = 'scraper+ai';
+
+  let result = null;
+  // --- ① 텍스트 원문이 있으면 먼저 AI 2단 분류 ---
+  if (rawText.trim().length >= 30) {
+    try {
+      result = await getAi().analyzeRequirementsText(rawText);
+    } catch (e) {
+      // 과부하는 일시 장애 안내로 전달 (붙여넣기 전환이 아님) — OCR 재시도 없이 바로
+      if (e.code === 'AI_BUSY') throw e;
+      // 분류 실패(AI_PASTE_PARSE 등)는 ② 이미지 OCR 으로 이어본다 — 원문이 표·이미지 중심이면
+      // 텍스트에 요구사항이 없어 실패했을 가능성이 높다 (실측: rec_idx 54940058).
+    }
+    if (result && !result.bundle.required.length && !result.bundle.preferred.length && !result.bundle.duties.length) {
+      result = null; // 분류는 됐는데 전부 비었음 → 요구사항이 이미지에 있는 케이스 → ② 로
+    }
+  }
+
+  // --- ② 텍스트 부족/분류 실패 → 공고 이미지 OCR 전사로 원문 재확보 ---
+  if (!result) {
+    const imgUrls = extractSaraminImages(html);
+    const images = imgUrls.length ? await downloadImages(imgUrls) : [];
+    if (images.length) {
+      let ocr;
+      try {
+        ocr = await getAi().transcribeImages(images);
+      } catch (e) {
+        if (e.code === 'AI_BUSY') throw e; // 과부하는 일시 장애 안내로
+        const err = new Error('이미지 공고의 글자를 읽지 못했습니다. ③ 붙여넣기에 공고 내용을 직접 넣어주세요.');
+        err.code = 'SCRAPE_OCR_FAIL';
+        err.cause = e.message;
+        throw err;
+      }
+      if (ocr.text.trim().length >= 30) {
+        try {
+          result = await getAi().analyzeRequirementsText(ocr.text);
+          via = 'scraper+ocr';
+          rawText = ocr.text;
+        } catch (e) {
+          if (e.code === 'AI_BUSY') throw e;
+          const err = new Error('공고 원문을 가져왔지만 자동 분류에 실패했습니다. ③ 붙여넣기에 공고 내용을 직접 넣어주세요.');
+          err.code = 'SCRAPE_PARSE';
+          err.cause = e.message;
+          throw err;
+        }
+        // OCR 전사분에서도 요구사항이 전부 비면 → 이미지가 장식(헤더·타이틀 등)이었다는 뜻.
+        // 빈 번들을 성공으로 돌려주지 않는다 — 붙여넣기 안내로 (실측: rec_idx 54940058 다중포지션 공고).
+        if (result && !result.bundle.required.length && !result.bundle.preferred.length && !result.bundle.duties.length) {
+          const err = new Error('공고 본문이 이미지·표로 되어 있어 자동 추출이 어렵습니다. 모집부문 상세 내용을 복사해 ③ 붙여넣기에 넣어주세요.');
+          err.code = 'SCRAPE_PARSE';
+          err.cause = 'OCR 전사 결과에 요구사항 없음 (이미지가 장식성)';
+          throw err;
+        }
+      }
+    }
+  }
+
+  if (!result) {
+    // 이미지가 없어 ② 를 못 돌렸고 ① 도 실패한 케이스 → 붙여넣기 안내
+    if (rawText.trim().length >= 30) {
+      const err = new Error('공고 원문을 가져왔지만 자동 분류에 실패했습니다. ③ 붙여넣기에 공고 내용을 직접 넣어주세요.');
+      err.code = 'SCRAPE_PARSE';
+      throw err;
+    }
+    return null; // 텍스트도 이미지도 없음 → 상위(422 + 붙여넣기 안내)
   }
 
   // 회사/직무/기본조건은 HTML 에서 더 정확히 얻을 수 있으니 덮어쓴다
   const mCo = html.match(/class="company_name[^"]*"[^>]*title="([^"]+)"/)
     || html.match(/<meta property="og:title" content="\[([^[\]]+)\]/);
-  const bundle = { ...result.bundle };
+  // AI 분류 결과에도 불릿/공백 차이 중복이 섞일 수 있어 같은 기준으로 dedupe
+  const bundle = buildBundle({ ...result.bundle });
   if (!bundle.company && mCo) bundle.company = decodeEntities(mCo[1]).trim();
-  bundle.meta = { source: 'url', scraper: 'saramin+ai', url };
-  return { bundle, via: 'scraper+ai', rawText };
+  bundle.meta = { source: 'url', scraper: via, url };
+  return { bundle, via, rawText };
 }
 
 /** tooltip(id prefix) 내용 → 원문 행 배열. li 항목은 "라벨 내용" 한 줄로, freeform 은 줄 단위.
@@ -349,9 +470,28 @@ async function scrapeUrlRequirements(url) {
     return { bundle, via: 'scraper' };
   } catch (parseErr) {
     if (parseErr.code !== 'SCRAPE_EMPTY') throw parseErr;
-    // ② 자유양식 공고 — 원문 텍스트를 AI 2단 파이프라인으로 분류 (문장은 그대로)
+    // ② 자유양식 공고 — 원문 텍스트(부족하면 이미지 OCR 전사)를 AI 2단 파이프라인으로 분류
     const fb = await saraminAiFallback(html, target);
-    if (fb) return fb;
+    if (fb) {
+      // 구조 파싱 실패 공고라도 tooltip 등록형 우대·요약 기본조건은 실제 데이터다 —
+      // AI 분류 결과에 누락되면 다시 병합 (dedupe 로 중복 방지는 buildBundle 이 처리).
+      const tipPref = extractTooltip(html, 'details-preferred-');
+      if (tipPref.length) {
+        for (const l of tipPref) {
+          const b = stripBullet(l);
+          if (b && b !== '상세보기') fb.bundle.preferred.push(b);
+        }
+        const merged = buildBundle(fb.bundle); // 정규화 dedupe 재적용
+        fb.bundle.preferred = merged.preferred;
+      }
+      const summaryRe = /<dt>\s*(경력|학력|근무형태|급여|근무지역|모집인원)\s*<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd\s*>/g;
+      for (const m of html.matchAll(summaryRe)) {
+        const val = htmlToLines(m[2]).join(' ');
+        if (val) fb.bundle.notes.push(`${m[1]}: ${val}`);
+      }
+      fb.bundle.notes = buildBundle(fb.bundle).notes;
+      return fb;
+    }
     // 원문조차 없음(이미지 전용 공고 등) → 붙여넣기 폴백
     throw parseErr;
   }
@@ -360,5 +500,6 @@ async function scrapeUrlRequirements(url) {
 module.exports = {
   scrapeUrlRequirements, isDirectSupported, parserForUrl,
   // 테스트용
-  parseSaramin, normalizeSaraminUrl, extractSaraminFreeformText, decodeEntities, htmlToLines,
+  parseSaramin, normalizeSaraminUrl, extractSaraminFreeformText, extractSaraminImages,
+  decodeEntities, htmlToLines,
 };
