@@ -75,16 +75,26 @@ const cookieOf = (r) => {
   r = await req(server, { path: '/api/postings/999999/requirements', cookie });
   check('없는 공고 → 404', r.status === 404);
 
-  console.log('\n[2] URL 경로 (2차 소스) — 차단 도메인 감지');
+  console.log('\n[2] URL 경로 (2차 소스) — 사람인 직접 스크레이핑 + 차단 도메인 감지');
+  // 사람인: 서버가 HTML을 직접 받아 원문 그대로 추출 (AI 미경유 — Step 9.5)
+  // ※ 실제 사람인 서버 접근 포함 (네트워크 격리 환경이면 실패 가능)
   r = await req(server, { method: 'POST', path: '/api/ai/fetch-url',
-    cookie, body: { url: 'https://www.saramin.co.kr/job/123' } });
-  check('사람인 URL → 400 + 붙여넣기 안내', r.status === 400 && r.body?.fallback === 'paste', JSON.stringify(r.body).slice(0, 90));
+    cookie, body: { url: 'https://www.saramin.co.kr/zf_user/jobs/relay/view?view_type=list&rec_idx=54211558&t_ref=jobcategory_recruit&t_ref_content=general#seq=0' } });
+  const sb = r.body?.bundle || {};
+  check('사람인 URL → 200 (직접 스크레이핑)', r.status === 200 && r.body?.via === 'scraper', JSON.stringify(r.body).slice(0, 90));
+  check('회사명 추출 (토스뱅크)', /토스뱅크/.test(sb.company || ''), sb.company);
+  check('주요업무 원문 추출', (sb.duties || []).some((x) => /여신 상품/.test(x)), JSON.stringify(sb.duties || []).slice(0, 80));
+  check('자격요건 원문 추출', (sb.required || []).length >= 3, JSON.stringify(sb.required || []).slice(0, 80));
+  check('우대사항 추출', (sb.preferred || []).length >= 1, JSON.stringify(sb.preferred || []).slice(0, 80));
   r = await req(server, { method: 'POST', path: '/api/ai/fetch-url',
     cookie, body: { url: 'https://people.wanted.co.kr/req/1' } });
   check('원티드 URL → 400', r.status === 400 && r.body?.fallback === 'paste');
   r = await req(server, { method: 'POST', path: '/api/ai/fetch-url',
     cookie, body: { url: 'notaurl' } });
   check('잘못된 URL 형식 → 400', r.status === 400);
+  r = await req(server, { method: 'POST', path: '/api/ai/fetch-url',
+    cookie, body: { url: 'https://www.saramin.co.kr/zf_user/jobs/view?rec_idx=99999999999' } });
+  check('없는 사람인 공고 → 422 + 붙여넣기 안내', r.status === 422 && r.body?.fallback === 'paste', JSON.stringify(r.body).slice(0, 90));
 
   console.log('\n[3] 붙여넣기 경로 (3차 소스) — 실제 2단 분석 [Gemini 호출]');
   const paste = `스타트업 (주)테스트 채용공고

@@ -1131,7 +1131,7 @@ async function fetchUrlRequirements() {
     status.hidden = false; status.className = 'req-status err'; status.textContent = 'http(s)로 시작하는 URL을 입력해주세요.';
     return;
   }
-  status.hidden = false; status.className = 'req-status'; status.textContent = '🌐 공고 페이지 읽는 중… (최대 90초)';
+  status.hidden = false; status.className = 'req-status'; status.textContent = '🌐 공고 페이지 읽는 중… (사람인은 원문 그대로 수 초, 그 외 사이트는 최대 90초)';
   try {
     const r = await api('/api/ai/fetch-url', { method: 'POST', body: { url } });
     resumeState.req = r.bundle;

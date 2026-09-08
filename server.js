@@ -10,6 +10,7 @@ const db = require('./db');
 const collector = require('./collector');
 const ai = require('./ai');
 const auth = require('./auth');
+const scraper = require('./scraper');
 
 const PORT = process.env.PORT || 3000;
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || '0 9,21 * * *'; // 1일 2회
@@ -656,15 +657,37 @@ function createApp() {
     res.json(bundle);
   });
 
-  // ----- 2차: 공고 URL → Gemini url_context 로 분석 -----
-  // 차단 도메인(사람인·원티드)은 400 + 붙여넣기 안내. 접근 실패는 422 + 붙여넣기 안내.
+  // ----- 2차: 공고 URL → 요구사항 번들 -----
+  // 우선순위: ① 직접 스크레이핑(사람인 — AI 재해석 없이 원문 그대로, 즉시)
+  //          ② Gemini url_context (그 외 사이트 — AI 접근 허용 분석)
+  // 차단 도메인(원티드)은 400 + 붙여넣기 안내. 접근 실패는 422 + 붙여넣기 안내.
   app.post('/api/ai/fetch-url', auth.requireAuth, async (req, res) => {
     const { url } = req.body || {};
     if (!url || !/^https?:\/\//i.test(String(url))) {
       return res.status(400).json({ error: 'http(s) 로 시작하는 공고 URL을 입력하세요' });
     }
+    const target = String(url).trim();
+
+    // ① 직접 읽기 지원 사이트(사람인 등) — HTML 원문 파싱 (AI 호출 없음)
+    if (scraper.isDirectSupported(target)) {
+      try {
+        const r = await scraper.scrapeUrlRequirements(target);
+        return res.json({ bundle: r.bundle, via: 'scraper' });
+      } catch (e) {
+        // ★ 과부하(AI 분류 폴백까지 포화) → 일시 장애 안내 (다른 경로와 동일하게 503 + code)
+        if (e.code === 'AI_BUSY') {
+          console.error('[fetch-url:scraper] AI 과부하:', e.cause || e.message);
+          return res.status(503).json({ error: e.message, code: 'AI_BUSY' });
+        }
+        // 파싱 실패(마감/삭제/차단) → 붙여넣기 폴백 안내 (프론트가 3차 탭으로 전환)
+        console.error('[fetch-url:scraper]', e.cause || e.message);
+        return res.status(422).json({ error: e.message, fallback: 'paste' });
+      }
+    }
+
+    // ② 그 외 사이트 — Gemini url_context 로 분석
     try {
-      const r = await ai.fetchUrlRequirements(String(url).trim());
+      const r = await ai.fetchUrlRequirements(target);
       res.json({ bundle: r.bundle, model: r.model });
     } catch (e) {
       // AI_URL_BLOCKED/AI_URL_FAIL → 붙여넣기 폴백 안내 (프론트가 3차 탭으로 전환)

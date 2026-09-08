@@ -29,9 +29,10 @@ const MODEL_QUALITY = process.env.GEMINI_MODEL_QUALITY || process.env.GEMINI_MOD
 const DEFAULT_MODEL = MODEL_QUALITY;
 
 // url_context 시도를 skip 하는 도메인 (2026-08-31 robots.txt/CloudFront 실측)
-// - 사람인: GPTBot/Bytespider 등 AI 봇 전면 차단 명시
 // - 원티드: CloudFront 가 비브라우저 요청 403 차단
-const BLOCKED_URL_DOMAINS = ['saramin.co.kr', 'wanted.co.kr'];
+// ※ 사람인(2026-09-08 재실측)은 일반 브라우저 요청을 허용 → BLOCKED 에서 제외하고
+//   scraper.js 가 서버에서 직접 HTML 을 받아 원문 그대로 추출한다 (AI 재해석 없음).
+const BLOCKED_URL_DOMAINS = ['wanted.co.kr'];
 
 // 붙여넣기 원문 최대 길이 (프롬프트 보호)
 const MAX_PASTE_CHARS = 8000;
@@ -167,21 +168,29 @@ async function fetchUrlRequirements(url) {
     throw err;
   }
 
-  const prompt = `아래 URL의 채용공고 페이지를 직접 읽고 요구사항을 분석해 한국어로 정리해라.
+  const prompt = `아래 URL의 채용공고 페이지를 직접 읽고 모집부문 전체 내용을 추출해라.
 URL: ${url}
 
 만약 페이지에 접근할 수 없거나, 채용공고 내용(모집분야/자격요건)이 없으면 아래 형식으로 성공 여부를 반드시 표시해라:
 {"success": false, "reason": "접근 실패 사유"}
 
-성공했을 경우에만 아래 형식으로 응답해라 (번역·요약 금지, 공고 원문 표현을 최대한 보존):
+성공했을 경우에만 아래 형식으로 응답해라.
+
+★ 원문 보존 규칙 (가장 중요 — 반드시 지킬 것):
+- 공고 원문의 문장을 **글자 그대로 한 문장씩** 배열 항목으로 옮겨라. 단어를 고치거나, 요약하거나, 재작성하거나, 번역하지 마라.
+- 하나의 항목이 여러 문장이면 문장 단위로 나눠 각각 별도 항목으로 넣어라.
+- 모집부문에 있는 것은 전부 수집해야 한다: 주요업무, 자격요건 중 필수 조건(학력/경력/스킬/자격증), 우대사항, 근무조건, 채용절차.
+- "우대", "우대사항", "[우대]" 로 표시된 내용은 반드시 preferred 에 넣고, 필수 자격요건과 섞지 마라.
+- 공고에 따라 섹션 명칭이 달라도(예: "담당업무", "지원자격", "필수요건", "자격조건") 의미로 분류해라.
+
 {
   "success": true,
   "company": "회사명",
   "position": "모집 직무명",
-  "duties": ["주요 업무 항목들"],
-  "required": ["지원자격/필수 요건 항목들"],
-  "preferred": ["우대사항 항목들"],
-  "notes": ["근무지역/고용형태 등 기타 정보"]
+  "duties": ["주요 업무 항목들 — 원문 문장 그대로"],
+  "required": ["지원자격/필수 요건 항목들 — 원문 문장 그대로"],
+  "preferred": ["우대사항 항목들 — 원문 문장 그대로"],
+  "notes": ["근무지역/고용형태/채용절차 등 기타 정보 — 원문 그대로"]
 }`;
 
   const { text, model: usedModel } = await callGemini({
@@ -256,7 +265,14 @@ ${clipped}`;
   const cleanedText = clean.text.trim();
 
   // --- 2단: QUALITY 구조화 ---
-  const structPrompt = `아래 채용공고 본문을 분석해 요구사항을 JSON으로 구조화해라. 공고 원문의 표현을 보존하고, 각 항목은 한 문장/한 요건 단위로 분해해라. 구분이 모호한 항목은 required 에 넣어라.
+  const structPrompt = `아래 채용공고 본문을 분석해 요구사항을 JSON으로 구조화해라.
+
+★ 원문 보존 규칙 (가장 중요 — 반드시 지킬 것):
+- 공고 원문의 문장을 **글자 그대로 한 문장씩** 배열 항목으로 옮겨라. 단어를 고치거나, 요약하거나, 재작성하거나, 번역하지 마라.
+- 하나의 항목이 여러 문장이면 문장 단위로 나눠 각각 별도 항목으로 넣어라.
+- 모집부문에 있는 것은 전부 수집해야 한다: 주요업무, 자격요건 중 필수 조건(학력/경력/스킬/자격증), 우대사항, 근무조건, 채용절차.
+- "우대", "우대사항", "[우대]" 로 표시된 내용은 반드시 preferred 에 넣고, 필수 자격요건과 섞지 마라.
+- 공고에 따라 섹션 명칭이 달라도(예: "담당업무", "지원자격", "필수요건", "자격조건") 의미로 분류해라. 구분이 모호한 항목은 required 에 넣어라.
 
 [채용공고 본문]
 ${cleanedText}
@@ -265,10 +281,10 @@ ${cleanedText}
 {
   "company": "회사명 (없으면 빈 문자열)",
   "position": "모집 직무명",
-  "duties": ["주요 업무 항목"],
-  "required": ["지원자격/필수 요건 항목"],
-  "preferred": ["우대사항 항목"],
-  "notes": ["근무지역/고용형태 등 기타"]
+  "duties": ["주요 업무 항목 — 원문 문장 그대로"],
+  "required": ["지원자격/필수 요건 항목 — 원문 문장 그대로"],
+  "preferred": ["우대사항 항목 — 원문 문장 그대로"],
+  "notes": ["근무지역/고용형태 등 기타 — 원문 그대로"]
 }`;
 
   const { text: structText, model: structModel } = await callGemini({
