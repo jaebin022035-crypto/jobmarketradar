@@ -175,6 +175,13 @@ function startHeartbeat() {
   }, 3 * 60 * 1000); //3분주기
 }
 
+document.addEventListener('visibilitychange', () => {
+  // 사용자가 다시 이 탭을 바라보았을 때
+  if (document.visibilityState === 'visible' && authState.user) {
+    fetch('api/auth/heartbeat', { method: 'POST' });
+  }
+});
+
 //페이지 로드 완료시 실행
 document.addEventListener('DOMContentLoaded' , () => {
   startHeartbeat();

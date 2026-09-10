@@ -107,8 +107,8 @@ function extendSession(req){
 
   //5분 뒤의 시간 계산
   const newExpiresAt = new Date(Date.now() + (5 * 60 * 1000)).toISOString();
-
-  //DB업데이트 함수 호출
+  db.updateSessionExpiration(hashToken(token), newExpiresAt);
+  return true;
 }
 
 /** 세션 종료 (로그아웃) */

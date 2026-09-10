@@ -541,14 +541,14 @@ function createApp() {
   });
 
   // ----- 세션 수명 연장 (Heartbeat) ------
-  function extendSession(req) {
-  const token = parseCookies(req)[SESSION_COOKIE];
-  if (!token) return false;
-
-  const newExpiresAt = new Date(Date.now() + (5 * 60 * 1000)).toISOString();
-  db.updateSessionExpiration(hashToken(token), newExpiresAt);
-  return true;
-}
+  app.post('/api/auth/heartbeat', (req, res) => {
+    const success = auth.extendSession(req);
+    if (success) {
+      res.json({ ok: true, message: '세션이 연장되었습니다.' });
+    } else {
+      res.status(401).json({ error: '토큰이 없거나 만료되었습니다.' });
+    }
+  });
 
   /* ============================================================
      Step 7: 이력서 관리 API — 다중 프로필 + AI 자기소개서
