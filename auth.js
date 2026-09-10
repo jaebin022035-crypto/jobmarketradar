@@ -17,7 +17,7 @@ const db = require('./db');
 
 // ---------- 설정 ----------
 const SESSION_COOKIE = 'jmr_session';   // 쿠키 이름
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 세션 유효기간 7일
+const SESSION_TTL_MS = 5 * 60 * 1000; // 5분 (300000)짧은 세션 수명->  브라우저 자동로그아웃,보안성 극대화 
 const COOKIE_PATH = '/';
 
 // 배포 환경이 HTTPS면 Secure 플래그 부여 (환경변수로 제어)
@@ -100,6 +100,17 @@ function getUserFromRequest(req) {
   return db.getSessionUser(hashToken(token)) || null;
 }
 
+/** 세션 수명 5분연장 (Heartbeat용) */
+function extendSession(req){
+  const token = parseCookies(req)[SESSION_COOKIE];
+  if(!token) return false; // 토큰이 없으면 실패
+
+  //5분 뒤의 시간 계산
+  const newExpiresAt = new Date(Date.now() + (5 * 60 * 1000)).toISOString();
+
+  //DB업데이트 함수 호출
+}
+
 /** 세션 종료 (로그아웃) */
 function revokeSession(req) {
   const token = parseCookies(req)[SESSION_COOKIE];
@@ -114,7 +125,7 @@ function sessionCookie(token, expiresAt) {
     'HttpOnly',
     'SameSite=Lax',
     `Path=${COOKIE_PATH}`,
-    `Expires=${new Date(expiresAt).toUTCString()}`,
+    //`Expires=${new Date(expiresAt).toUTCString()}`,   브라우저가 종료되면 로그아웃시키기위해 우선 주석처리
   ];
   if (COOKIE_SECURE) parts.push('Secure');
   return parts.join('; ');
@@ -146,5 +157,5 @@ module.exports = {
   hashPassword, verifyPassword,
   issueSession, revokeSession, getUserFromRequest,
   sessionCookie, clearCookie,
-  requireAuth,
+  requireAuth, extendSession,
 };

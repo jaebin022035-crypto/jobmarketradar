@@ -540,6 +540,16 @@ function createApp() {
     res.json({ id: user.id, name: user.name, user_id: user.user_id });
   });
 
+  // ----- 세션 수명 연장 (Heartbeat) ------
+  function extendSession(req) {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  if (!token) return false;
+
+  const newExpiresAt = new Date(Date.now() + (5 * 60 * 1000)).toISOString();
+  db.updateSessionExpiration(hashToken(token), newExpiresAt);
+  return true;
+}
+
   /* ============================================================
      Step 7: 이력서 관리 API — 다중 프로필 + AI 자기소개서
      Step 8: 전 라우트 requireAuth + 소유자(req.user.id) 스코핑

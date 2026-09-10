@@ -150,6 +150,36 @@ function renderAuthUI() {
   }
 }
 
+// 세션 유지 (Hearbeat)
+let heartbeatInterval = null;
+
+function startHeartbeat() {
+  if(heartbeatInterval) return; // 중복 방지 실패 
+
+  heartbeatInterval = setInterval(async () => {
+    //로그인 상태가 아닐 때는 신호를 보내지 않음
+    if (!authState.user) return;
+
+    try{
+      const response = await fetch('/api/auth/heartbeat', {method: 'POST'});
+
+      //세션이 이미 만료된 경우 (401등)
+      if(!response.ok) {
+        console.warn('세션이 만료되었습니다');
+        authState.user = null;
+        renderAuthUI(); //ui를 미로그인 상태로 변경
+      }
+    }catch (error){
+      console.error('Heartbeat 신호 전송 실패', error);
+    }
+  }, 3 * 60 * 1000); //3분주기
+}
+
+//페이지 로드 완료시 실행
+document.addEventListener('DOMContentLoaded' , () => {
+  startHeartbeat();
+});
+
 // 오버레이 열기 — mode: 'login' | 'register'
 function openAuthOverlay(mode = 'login', notice) {
   const ov = document.getElementById('auth-overlay');
@@ -173,6 +203,7 @@ function toggleAuthForm(mode) {
   document.getElementById('auth-title').textContent = mode === 'register' ? '회원가입' : '로그인';
   clearAuthMsg();
 }
+
 
 function showAuthMsg(id, text, isError) {
   const el = document.getElementById(id);

@@ -5,6 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const { get } = require('http');
 
 const DB_PATH = path.join(__dirname, 'data', 'jobmarket.db');
 const SCHEMA_PATH = path.join(__dirname, 'db', 'schema.sql');
@@ -231,6 +232,15 @@ function deleteSession(tokenHash) {
   return getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash).changes;
 }
 
+// 세션 만료 시간 업데이트 (Heartbeat용) 
+function updateSessionExpiration(tokenHash, newExpiresAt) {
+  getDb().prepare(
+    `update sessions SET expires_at = ? where token_hash = ?`
+  ).run(newExpiresAt, tokenHash);
+}
+
+
+
 /* ============================================================
    Step 7: 이력서 관리 — profiles / cover_letters / generation_logs
    Step 8: 모든 함수가 ownerId(로그인 사용자 id) 스코프로 동작 → 개인정보 격리
@@ -456,6 +466,7 @@ module.exports = {
   // Step 8: 회원/세션
   createUser, getUserByLoginId, getUserById,
   createSession, getSessionUser, deleteSession,
+  updateSessionExpiration,
   // Step 7: 이력서 관리 (Step 8부터 ownerId 스코프)
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listCoverLetters, getCoverLetter, createCoverLetter, updateCoverLetter, deleteCoverLetter,
