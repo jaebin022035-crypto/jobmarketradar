@@ -329,7 +329,7 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
 
   <!-- ═══════════ 헤더 ═══════════ -->
   <header class="masthead">
-    <div class="eyebrow">Deployment Pipeline · 2026-08-31 기준</div>
+    <div class="eyebrow">Deployment Pipeline · 2026-09-11 기준</div>
     <h1>JobMarketRadar 배포 파이프라인</h1>
     <p class="sub">로컬 소스에서 운영 URL까지 — <strong>이미지 경로</strong>와 <strong>매니페스트 경로</strong> 두 갈래가
     vcluster 안의 하나의 Pod에서 수렴하는 구조. ArgoCD가 Git을 단일 진실의 소스로 삼아 클러스터를 자동 수렴시킨다.</p>
@@ -484,7 +484,8 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
         <div class="node violet">
           <div class="node-top"><span class="node-name">사용자 트래픽</span><span class="kind">in</span></div>
           <p class="node-body">대시보드 · 이력서 관리 · 로그인 세션<br>
-          미인증 API는 <span class="tk">401</span>로 차단</p>
+          미인증 API는 <span class="tk">401</span>로 차단 · 세션은 <span class="tk">5분 슬라이딩</span>+
+          <span class="tk">3분 하트비트</span> 연장</p>
         </div>
         <div class="node violet">
           <div class="node-top"><span class="node-name">채용공고 수집</span><span class="kind">cron</span></div>
@@ -563,7 +564,7 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
   <!-- ═══════════ 가드레일 ═══════════ -->
   <section>
     <div class="sec-head"><span class="no">§</span><h2>운영 가드레일 — 실제 사고에서 나온 규칙</h2></div>
-    <p class="sec-desc">2026-08-31 배포에서 실제로 겪은 4건. 각 항목은 그날의 장애 원인과 복구 커밋으로 연결된다.</p>
+    <p class="sec-desc">실제로 겪은 5건. 각 항목은 그날의 장애 원인과 복구 커밋으로 연결된다.</p>
     <div class="grid2">
       <div class="mini">
         <div class="mt"><span class="glyph r">32Mi</span>컨테이너 최소 메모리</div>
@@ -586,6 +587,12 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
         <p class="md"><code>00-namespace.yaml</code>·<code>40-externalsecret.yaml</code>은 "못 올린 것"이
         아니라 구조상 뺀 것. 삭제 커밋 메시지를 먼저 읽었어야 했다 — 실수로 복원했다가
         <code>6afb53c</code>로 되돌림.</p>
+      </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph r">MERG</span>develop → main 병합 전 deploy/ 감사</div>
+        <p class="md">2026-09-11, 세션 하트비트 커밋(1dc979d)에 00·40 파일이 다시 따라 들어와 있었다 —
+        기능 브랜치에서 오래된 main 상태를 참고해 생긴 유입. <strong>main 병합 전
+        <code>git diff main..develop -- deploy/</code>로 신규 매니페스트 유무를 확인</strong>한다.</p>
       </div>
     </div>
   </section>

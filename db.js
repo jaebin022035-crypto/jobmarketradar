@@ -5,7 +5,6 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
-const { get } = require('http');
 
 const DB_PATH = path.join(__dirname, 'data', 'jobmarket.db');
 const SCHEMA_PATH = path.join(__dirname, 'db', 'schema.sql');
@@ -232,11 +231,14 @@ function deleteSession(tokenHash) {
   return getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash).changes;
 }
 
-// 세션 만료 시간 업데이트 (Heartbeat용) 
+// 세션 만료 시간 갱신 (Heartbeat용) — 아직 만료되지 않은 세션만 연장.
+// WHERE 의 현재시각 조건이 "만료된 세션의 부활"을 원자적으로 차단한다
+// (브라우저를 안 닫은 채 5분 방치 후 복귀한 탭이 만료 세션을 되살리는 것 방지).
+// @returns {boolean} 실제 갱신되었는지 (만료/없는 세션이면 false)
 function updateSessionExpiration(tokenHash, newExpiresAt) {
-  getDb().prepare(
-    `update sessions SET expires_at = ? where token_hash = ?`
-  ).run(newExpiresAt, tokenHash);
+  return getDb().prepare(
+    `UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at >= ?`
+  ).run(newExpiresAt, tokenHash, new Date().toISOString()).changes > 0;
 }
 
 

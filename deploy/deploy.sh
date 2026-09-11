@@ -13,10 +13,11 @@
 #   - 레지스트리: std-harbor.kopoctc.kr/kopo13 (public, imagePullSecret 불필요)
 #
 # Secret 주의:
-#   DHS_API_KEY 가 필요. Vault 권한이 있으면 ExternalSecret(40) 사용,
-#   없으면 이 스크립트 시작 전 수동으로 생성:
+#   DHS_API_KEY·GEMINI_API_KEY 가 필요. 이 클러스터는 수동 생성 방침:
 #     kubectl -n jobradar create secret generic jobradar-secret \
-#       --from-literal=DHS_API_KEY='<키>'
+#       --from-literal=DHS_API_KEY='<키>' --from-literal=GEMINI_API_KEY='<키>'
+#   (ExternalSecret 40-*.yaml 은 vcluster namespaced 모드 정책상 deploy/ 에
+#    두지 않음 — ArgoCD 가 Vault 경로 없는 CR 을 apply 하는 것을 막기 위함.)
 # ============================================================
 set -euo pipefail
 
@@ -50,18 +51,12 @@ docker push "${IMAGE}"
 
 # ----- 2. 매니페스트 apply (순서대로) -----
 echo "▶ [2/3] k8s 매니페스트 apply..."
-kubectl apply -f "${HERE}/00-namespace.yaml"
 kubectl apply -f "${HERE}/10-pvc.yaml"
 
-# Secret 처리: ExternalSecret 시도, 실패/권한 없으면 수동 생성 안내
+# Secret: 수동 생성 방침 (ExternalSecret 미사용 — Vault 경로 없음)
 if ! kubectl -n "${APP_NS}" get secret jobradar-secret >/dev/null 2>&1; then
-  if kubectl get secretstore vault-backend -n default >/dev/null 2>&1; then
-    echo "  ▷ vault-backend SecretStore 감지 → ExternalSecret apply"
-    kubectl apply -f "${HERE}/40-externalsecret.yaml" || true
-  else
-    echo "  ⚠ Secret jobradar-secret 없음. 수동 생성 필요:"
-    echo "    kubectl -n ${APP_NS} create secret generic jobradar-secret --from-literal=DHS_API_KEY='<키>'"
-  fi
+  echo "  ⚠ Secret jobradar-secret 없음. 수동 생성 필요:"
+  echo "    kubectl -n ${APP_NS} create secret generic jobradar-secret --from-literal=DHS_API_KEY='<키>' --from-literal=GEMINI_API_KEY='<키>'"
 fi
 
 kubectl apply -f "${HERE}/20-deployment.yaml"
@@ -73,7 +68,7 @@ kubectl -n "${APP_NS}" rollout status deployment/jobradar --timeout=300s
 
 echo
 echo "✅ 배포 완료:"
-kubectl -n "${APP_NS}" get all,ingress,pvc,externalsecret
+kubectl -n "${APP_NS}" get all,ingress,pvc
 
 echo
 echo "▶ 접속:"

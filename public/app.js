@@ -150,36 +150,35 @@ function renderAuthUI() {
   }
 }
 
-// 세션 유지 (Hearbeat)
+// 세션 유지 (Heartbeat) — 세션 수명(5분) < 하트비트 주기×2(6분) 이내로 주기적 연장.
+// 서버가 401을 주면(만료) 즉시 미로그인 UI로 전환해 세션 쿠키 소멸 전에 안내.
 let heartbeatInterval = null;
+const HEARTBEAT_MS = 3 * 60 * 1000; // 3분 주기
 
-function startHeartbeat() {
-  if(heartbeatInterval) return; // 중복 방지 실패 
-
-  heartbeatInterval = setInterval(async () => {
-    //로그인 상태가 아닐 때는 신호를 보내지 않음
-    if (!authState.user) return;
-
-    try{
-      const response = await fetch('/api/auth/heartbeat', {method: 'POST'});
-
-      //세션이 이미 만료된 경우 (401등)
-      if(!response.ok) {
-        console.warn('세션이 만료되었습니다');
-        authState.user = null;
-        renderAuthUI(); //ui를 미로그인 상태로 변경
-      }
-    }catch (error){
-      console.error('Heartbeat 신호 전송 실패', error);
+async function sendHeartbeat() {
+  if (!authState.user) return; // 로그인 상태가 아닐 때는 신호를 보내지 않음
+  try {
+    const response = await fetch('/api/auth/heartbeat', { method: 'POST' });
+    if (!response.ok) {
+      console.warn('세션이 만료되었습니다');
+      authState.user = null;
+      renderAuthUI(); // ui를 미로그인 상태로 변경
     }
-  }, 3 * 60 * 1000); //3분주기
+  } catch (error) {
+    console.error('Heartbeat 신호 전송 실패', error);
+  }
 }
 
+function startHeartbeat() {
+  if (heartbeatInterval) return; // 중복 시작 방지
+
+  heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_MS);
+}
+
+// 사용자가 다른 탭/창으로 갔다가 이 탭을 다시 바라볼 때 즉시 연장 요청
+// (비활성 탭의 타이머는 브라우저가 늦추므로, 복귀 시점에 즉시 확인)
 document.addEventListener('visibilitychange', () => {
-  // 사용자가 다시 이 탭을 바라보았을 때
-  if (document.visibilityState === 'visible' && authState.user) {
-    fetch('api/auth/heartbeat', { method: 'POST' });
-  }
+  if (document.visibilityState === 'visible') sendHeartbeat();
 });
 
 //페이지 로드 완료시 실행
@@ -210,7 +209,6 @@ function toggleAuthForm(mode) {
   document.getElementById('auth-title').textContent = mode === 'register' ? '회원가입' : '로그인';
   clearAuthMsg();
 }
-
 
 function showAuthMsg(id, text, isError) {
   const el = document.getElementById(id);

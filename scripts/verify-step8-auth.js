@@ -164,6 +164,38 @@ const cookieOf = (res) => {
   r = await req(server, { path: '/' });
   check('정적 index.html 서빙 200', r.status === 200);
 
+  console.log('\n[7] 세션 하트비트 (5분 세션 + 3분 슬라이딩 연장)');
+  // 재로그인 (위 [5]에서 A 로그아웃됨)
+  r = await req(server, { method: 'POST', path: '/api/auth/login',
+    body: { user_id: `test_a_${ts}`, password: 'pass1234' } });
+  base.A = cookieOf(r);
+  check('하트비트 검증용 재로그인', r.status === 200 && !!base.A);
+
+  r = await req(server, { method: 'POST', path: '/api/auth/heartbeat', cookie: base.A });
+  check('유효한 세션 하트비트 → 200 연장', r.status === 200 && r.body?.ok === true);
+
+  // 로그인 응답 쿠키에 Expires가 없어야 함 (세션 쿠키 = 브라우저 종료 시 소멸)
+  r = await req(server, { method: 'POST', path: '/api/auth/login',
+    body: { user_id: `test_b_${ts}`, password: 'pass5678' } });
+  const rawCookieB = r.setCookie.find((c) => c.startsWith('jmr_session='));
+  check('로그인 쿠키는 세션 쿠키 (Expires 없음 → 브라우저 종료 시 소멸)',
+    !rawCookieB || !/Expires=/i.test(rawCookieB), rawCookieB);
+
+  // 세션을 강제 만료시킨 뒤 하트비트 → 부활하면 안 됨 (핵심 보안 속성)
+  const d0 = db.getDb();
+  const tokenHashA = require('crypto').createHash('sha256')
+    .update(base.A.split('=')[1]).digest('hex');
+  d0.prepare(`UPDATE sessions SET expires_at = ? WHERE token_hash = ?`)
+    .run(new Date(Date.now() - 1000).toISOString(), tokenHashA);
+  r = await req(server, { method: 'POST', path: '/api/auth/heartbeat', cookie: base.A });
+  check('만료된 세션 하트비트 → 401 (부활 금지)', r.status === 401, `status=${r.status}`);
+  r = await req(server, { path: '/api/auth/me', cookie: base.A });
+  check('만료 후 /me → 401 (세션 무효 유지)', r.status === 401, `status=${r.status}`);
+
+  // 미로그인(쿠키 없음) 하트비트도 401
+  r = await req(server, { method: 'POST', path: '/api/auth/heartbeat' });
+  check('쿠키 없는 하트비트 → 401', r.status === 401, `status=${r.status}`);
+
   // 정리: 테스트 사용자/프로필 삭제
   const d = db.getDb();
   const delA = d.prepare('SELECT id FROM users WHERE user_id = ?').get(`test_a_${ts}`);
