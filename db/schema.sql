@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash  TEXT PRIMARY KEY,               -- 세션 토큰(쿠키값)의 SHA-256 hex
   user_id     INTEGER NOT NULL,               -- FK -> users.id
   created_at  TEXT NOT NULL,                  -- 발급시각 (ISO)
-  expires_at  TEXT NOT NULL,                  -- 만료시각 (ISO, 발급后 7일)
+  expires_at  TEXT NOT NULL,                  -- 만료시각 (ISO, 5분 + 하트비트 슬라이딩 연장)
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);

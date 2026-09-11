@@ -231,6 +231,18 @@ function deleteSession(tokenHash) {
   return getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash).changes;
 }
 
+// 세션 만료 시간 갱신 (Heartbeat용) — 아직 만료되지 않은 세션만 연장.
+// WHERE 의 현재시각 조건이 "만료된 세션의 부활"을 원자적으로 차단한다
+// (브라우저를 안 닫은 채 5분 방치 후 복귀한 탭이 만료 세션을 되살리는 것 방지).
+// @returns {boolean} 실제 갱신되었는지 (만료/없는 세션이면 false)
+function updateSessionExpiration(tokenHash, newExpiresAt) {
+  return getDb().prepare(
+    `UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at >= ?`
+  ).run(newExpiresAt, tokenHash, new Date().toISOString()).changes > 0;
+}
+
+
+
 /* ============================================================
    Step 7: 이력서 관리 — profiles / cover_letters / generation_logs
    Step 8: 모든 함수가 ownerId(로그인 사용자 id) 스코프로 동작 → 개인정보 격리
@@ -456,6 +468,7 @@ module.exports = {
   // Step 8: 회원/세션
   createUser, getUserByLoginId, getUserById,
   createSession, getSessionUser, deleteSession,
+  updateSessionExpiration,
   // Step 7: 이력서 관리 (Step 8부터 ownerId 스코프)
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listCoverLetters, getCoverLetter, createCoverLetter, updateCoverLetter, deleteCoverLetter,

@@ -53,4 +53,7 @@ echo $! > server.pid
 echo "$PORT" > server.port
 sleep 1
 echo "서버 실행됨 (포트 $PORT)."
-echo "외부 접속 주소(잠시 후 자동으로 열림): $URL"
+MY_IP=$(hostname -I | awk '{print $1}')
+echo "서버 포트: $PORT"
+echo "내부 IP 접속 주소: http://${MY_IP}:${PORT}"
+echo "외부 URL 접속 주소: $URL"

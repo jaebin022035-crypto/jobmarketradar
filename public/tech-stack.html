@@ -138,7 +138,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
 <div class="wrap">
 
   <header class="masthead">
-    <div class="eyebrow">Tech Stack · 2026-08-31 기준</div>
+    <div class="eyebrow">Tech Stack · 2026-09-11 기준</div>
     <h1>JobMarketRadar 기술 스택</h1>
     <p class="sub">채용시장 트렌드 대시보드 + AI 자기소개서 작성 도구.
     외부 SaaS 없이 <strong>Node.js 단일 프로세스</strong>로 프론트·API·수집·AI 호출을 모두 처리하는
@@ -169,7 +169,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
     <div class="layer" data-tone="back">
       <div class="layer-name"><span class="ln">애플리케이션</span><span class="le">Backend</span></div>
       <div class="layer-body"><div class="tech-row">
-        <div class="tech"><div class="tn">Express <span class="tv">4.19</span></div><p class="td">정적파일 + REST API 32개 라우트를 한 서버에</p></div>
+        <div class="tech"><div class="tn">Express <span class="tv">4.19</span></div><p class="td">정적파일 + REST API 33개 라우트를 한 서버에</p></div>
         <div class="tech"><div class="tn">Node crypto <span class="tv">내장</span></div><p class="td">scrypt 해시·세션 토큰 — 외부 암호화 라이브러리 없음</p></div>
         <div class="tech"><div class="tn">node-cron <span class="tv">3.0</span></div><p class="td">1일 2회(09·21시 KST) 자동 수집 스케줄러</p></div>
       </div></div>
@@ -202,7 +202,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
     <p class="sec-desc">작은 프로젝트지만 각 숫자는 검증된 실측값이다.</p>
     <div class="metrics">
       <div class="metric"><div class="mv">6</div><div class="ml">npm 프로덕션 의존성</div></div>
-      <div class="metric"><div class="mv">32</div><div class="ml">REST API 라우트</div></div>
+      <div class="metric"><div class="mv">33</div><div class="ml">REST API 라우트</div></div>
       <div class="metric"><div class="mv">9</div><div class="ml">SQLite 테이블</div></div>
       <div class="metric"><div class="mv">1691</div><div class="ml">수집된 채용공고 (postings)</div></div>
     </div>
@@ -278,7 +278,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
           <tr><td><code>collection_snapshots</code></td><td>수집 시점별 요약 스냅샷</td><td class="soft">트렌드 차트의 원천</td></tr>
           <tr><td><code>collection_logs</code></td><td>수집 실행 이력·성공 여부</td><td class="soft">대시보드 "실시간 수집" 표시</td></tr>
           <tr><td><code>users</code></td><td>회원 — 이름·아이디·scrypt 해시</td><td class="soft">→ profiles 1:N</td></tr>
-          <tr><td><code>sessions</code></td><td>해시된 세션 토큰·만료시각</td><td class="soft">user_id FK, 7일 만료</td></tr>
+          <tr><td><code>sessions</code></td><td>해시된 세션 토큰·만료시각</td><td class="soft">user_id FK, 5분 슬라이딩 만료</td></tr>
           <tr><td><code>profiles</code></td><td>경력·스택 등 사용자 프로필</td><td class="soft">user_id FK — 소유자 스코프</td></tr>
           <tr><td><code>cover_letters</code></td><td>자소서 5항목 + Step9 req_* 5컬럼</td><td class="soft">profile_id FK, ON DELETE CASCADE</td></tr>
           <tr><td><code>generation_logs</code></td><td>AI 생성 이력 — 모델명·토큰수</td><td class="soft">cover_letter_id FK</td></tr>
@@ -297,7 +297,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
         <tbody>
           <tr><td rowspan="1">통계</td><td><code>/api/summary</code> <code>/api/trends/*</code> <code>/api/insight/*</code></td><td><span class="tag m">공개</span></td></tr>
           <tr><td>공고</td><td><code>/api/postings</code> <code>/api/postings/:id</code> <code>…/goto</code></td><td><span class="tag m">공개</span></td></tr>
-          <tr><td>인증</td><td><code>/api/auth/register</code> <code>login</code> <code>logout</code> <code>me</code></td><td><span class="tag m">공개/세션</span></td></tr>
+          <tr><td>인증</td><td><code>/api/auth/register</code> <code>login</code> <code>logout</code> <code>me</code> <code>heartbeat</code></td><td><span class="tag m">공개/세션</span></td></tr>
           <tr><td>프로필</td><td><code>/api/profiles</code> CRUD 5종 + <code>/api/target-jobs</code></td><td><span class="tag c">필수</span></td></tr>
           <tr><td>자소서</td><td><code>/api/cover-letters</code> CRUD 5종</td><td><span class="tag c">필수</span></td></tr>
           <tr><td>AI</td><td><code>/api/cover-letters/:id/generate</code> <code>regenerate</code></td><td><span class="tag c">필수</span></td></tr>
@@ -336,11 +336,18 @@ footer code { font-family: var(--mono); color: var(--ink); }
         <p class="why">아이디 불일치·비밀번호 불일치를 <strong>같은 메시지</strong>로 응답해
         어떤 계정이 존재하는지 추측하게 하지 않는다. 가입 중복만 409로 구분.</p>
       </div>
+      <div class="card">
+        <h3>5분 슬라이딩 세션 + 하트비트 <span class="tag c">SESSION</span></h3>
+        <p class="why">세션 수명은 <code>5분</code>, 클라이언트는 <code>3분</code>마다 하트비트로 연장한다.
+        쿠키는 <strong>세션 쿠키</strong>(Expires 없음)라 브라우저 종료와 함께 소멸하고,
+        세션 연장 UPDATE는 <code>expires_at &gt;= 현재</code> 조건을 가져
+        <strong>만료된 세션이 하트비트로 부활하지 않는다</strong>.</p>
+      </div>
     </div>
   </section>
 
   <footer>
-    <span>JobMarketRadar Tech Stack — <code>package.json</code> · <code>db/schema.sql</code> 기준</span>
+    <span>JobMarketRadar Tech Stack — <code>package.json</code> · <code>db/schema.sql</code> · <code>docs/step8-auth-worklog.md</code> 기준</span>
     <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code></span>
   </footer>
 

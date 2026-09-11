@@ -506,7 +506,7 @@ function createApp() {
 
     // 가입 성공 → 자동 로그인 (세션 발급)
     const session = auth.issueSession(user.id);
-    res.setHeader('Set-Cookie', auth.sessionCookie(session.token, session.expiresAt));
+    res.setHeader('Set-Cookie', auth.sessionCookie(session.token));
     res.status(201).json({ id: user.id, name: user.name, user_id: user.user_id });
   });
 
@@ -522,7 +522,7 @@ function createApp() {
     }
 
     const session = auth.issueSession(user.id);
-    res.setHeader('Set-Cookie', auth.sessionCookie(session.token, session.expiresAt));
+    res.setHeader('Set-Cookie', auth.sessionCookie(session.token));
     res.json({ id: user.id, name: user.name, user_id: user.user_id });
   });
 
@@ -538,6 +538,16 @@ function createApp() {
     const user = auth.getUserFromRequest(req);
     if (!user) return res.status(401).json({ error: '로그인이 필요합니다' });
     res.json({ id: user.id, name: user.name, user_id: user.user_id });
+  });
+
+  // ----- 세션 수명 연장 (Heartbeat) ------
+  app.post('/api/auth/heartbeat', (req, res) => {
+    const success = auth.extendSession(req);
+    if (success) {
+      res.json({ ok: true, message: '세션이 연장되었습니다.' });
+    } else {
+      res.status(401).json({ error: '토큰이 없거나 만료되었습니다.' });
+    }
   });
 
   /* ============================================================

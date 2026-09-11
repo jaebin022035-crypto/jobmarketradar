@@ -17,7 +17,9 @@ const db = require('./db');
 
 // ---------- 설정 ----------
 const SESSION_COOKIE = 'jmr_session';   // 쿠키 이름
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 세션 유효기간 7일
+// 세션 수명 5분 + 3분 주기 하트비트로 슬라이딩 연장 (활동 중 로그인 유지).
+// 쿠키는 Expires 미지정(세션 쿠키) → 브라우저 종료 시 함께 소멸.
+const SESSION_TTL_MS = 5 * 60 * 1000;
 const COOKIE_PATH = '/';
 
 // 배포 환경이 HTTPS면 Secure 플래그 부여 (환경변수로 제어)
@@ -100,6 +102,20 @@ function getUserFromRequest(req) {
   return db.getSessionUser(hashToken(token)) || null;
 }
 
+/** 세션 수명 연장 (Heartbeat용) — 유효한 세션만 TTL 만큼 슬라이딩 연장. 만료·불일치면 false */
+function extendSession(req) {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  if (!token) return false; // 토큰이 없으면 실패
+
+  const newExpiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  const updated = db.updateSessionExpiration(hashToken(token), newExpiresAt);
+  if (!updated) {
+    // 이미 만료된 세션 — 부활시키지 않고 즉시 삭제 (DB 정리 겸)
+    db.deleteSession(hashToken(token));
+  }
+  return updated;
+}
+
 /** 세션 종료 (로그아웃) */
 function revokeSession(req) {
   const token = parseCookies(req)[SESSION_COOKIE];
@@ -108,13 +124,14 @@ function revokeSession(req) {
 
 // ---------- 쿠키 헬퍼 ----------
 /** 로그인 성공 시 Set-Cookie 헤더 값 조립 */
-function sessionCookie(token, expiresAt) {
+// 세션 쿠키: Expires를 붙이지 않는다(= 세션 쿠키) → 브라우저 종료 시 쿠키도 소멸.
+// 서버측 세션 수명(SESSION_TTL_MS)은 브라우저를 안 닫은 채 방치된 탭을 위한 안전망.
+function sessionCookie(token) {
   const parts = [
     `${SESSION_COOKIE}=${token}`,
     'HttpOnly',
     'SameSite=Lax',
     `Path=${COOKIE_PATH}`,
-    `Expires=${new Date(expiresAt).toUTCString()}`,
   ];
   if (COOKIE_SECURE) parts.push('Secure');
   return parts.join('; ');
@@ -146,5 +163,5 @@ module.exports = {
   hashPassword, verifyPassword,
   issueSession, revokeSession, getUserFromRequest,
   sessionCookie, clearCookie,
-  requireAuth,
+  requireAuth, extendSession,
 };
