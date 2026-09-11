@@ -114,14 +114,24 @@ body {
   display: flex; align-items: center; gap: 10px;
   margin-left: auto;                    /* 오른쪽 정렬 (header-meta 아래 줄) */
 }
-/* 문서 바로가기 — 로그인 버튼 아래 작은 글씨 (0.72rem, letter-spacing .01em) */
+/* 문서 바로가기 — 작은 글씨 (0.72rem, letter-spacing .01em).
+   데스크톱: 헤더 우측 하단(로그인 버튼 아래)에 absolute 로 띄운다.
+   모바일(≤767px): 서브행 flow 의 오른쪽 항목이 된다. */
+.app-header { position: relative; }
 .doc-links {
-  position: absolute; right: 0; top: calc(100% + 6px);
   display: flex; align-items: center; gap: 6px;
   white-space: nowrap;
-  margin-right: 15px;
 }
-.header-auth { position: relative; }
+/* 헤더 서브행 — 데스크톱: 헤더 바로 아래 오른쪽 (기존 doc-links 위치와 동일한 결).
+   header~nav 사이 gap(--gap 22px) 안에 들어오도록 높이 억제 */
+.header-subrow {
+  position: absolute; right: 0; top: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding-top: 3px;
+  margin-right: 15px;
+  height: 0;                             /* absolute 라도 문서 흐름 여백 차지 안 함 */
+  overflow: visible;
+}
 .doc-link {
   font-size: 0.72rem; letter-spacing: 0.01em;
   color: var(--muted); text-decoration: none;
@@ -471,7 +481,7 @@ select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
   .insight-charts { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
-  .nav-tab { font-size: 0.82rem; padding: 10px 8px; min-width: 0; }
+  /* nav-tab 축소는 767px 블록에서 처리 (11px) — 여기서 중복 정의 제거 */
   .custom-row .filter-group { min-width: 100%; }
 }
 @media (max-width: 560px) {
@@ -787,4 +797,32 @@ select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
 @media (max-width: 620px) {
   .header-auth { margin-left: 0; }
   .auth-user-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* ============================================================
+   모바일 (≤767px) — 2열 헤더 + 컴팩트 타이포그래피.
+   1행: brand (전체 폭) / 2행: [로그인(좌)] … [doc-links(우)]
+   탭 4종·로그인 버튼을 작게 축소해 한 줄에 유지 (햄버거 메뉴 없음).
+   ============================================================ */
+@media (max-width: 767px) {
+  /* brand 를 첫 줄에 혼자 두고, 로그인·doc-links 를 둘째 줄에 나란히 */
+  .brand { flex-basis: 100%; order: 1; }
+  .header-auth { order: 2; margin-left: 0; }          /* 왼쪽 */
+  .header-subrow {
+    position: static;
+    order: 3;
+    flex: 1;                                           /* 남은 폭 차지 → doc-links를 오른쪽으로 */
+    margin-right: 0; padding-top: 0;
+    height: auto; overflow: visible;
+  }
+  .doc-links { margin-left: auto; margin-right: 0; }   /* 서브행 안 오른쪽 끝 */
+
+  .subtitle { font-size: 10px; }           /* 부제 — 모바일 compact */
+  .nav-bar { gap: 0.5px; }
+  .nav-tab {
+    font-size: 11px;
+    padding: 6px 8px;
+    min-width: 0;
+  }
+  .auth-btn { padding: 6px 10px; }
 }
