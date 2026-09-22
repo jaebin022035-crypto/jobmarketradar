@@ -138,7 +138,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
 <div class="wrap">
 
   <header class="masthead">
-    <div class="eyebrow">Tech Stack · 2026-09-11 기준</div>
+    <div class="eyebrow">Tech Stack · 2026-09-22 기준</div>
     <h1>JobMarketRadar 기술 스택</h1>
     <p class="sub">채용시장 트렌드 대시보드 + AI 자기소개서 작성 도구.
     외부 SaaS 없이 <strong>Node.js 단일 프로세스</strong>로 프론트·API·수집·AI 호출을 모두 처리하는
@@ -148,6 +148,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
       <span class="pill"><span class="dot v"></span>AI <code>Gemini 2단</code></span>
       <span class="pill"><span class="dot a"></span>외부 의존 <code>6개 패키지</code></span>
       <span class="pill"><span class="dot"></span>빌드 <code>멀티스테이지 Docker</code></span>
+      <span class="pill"><span class="dot v"></span>외부 접속 <code>Cloudflare Tunnel</code></span>
     </div>
   </header>
 
@@ -192,6 +193,7 @@ footer code { font-family: var(--mono); color: var(--ink); }
         <div class="tech"><div class="tn">Docker <span class="tv">bookworm-slim</span></div><p class="td">멀티스테이지 빌드. 빌드 도구는 런타임 이미지에 미포함</p></div>
         <div class="tech"><div class="tn">vcluster/K8s <span class="tv">RKE2</span></div><p class="td">Pod 1개·PVC 영속화. ArgoCD GitOps로 배포</p></div>
         <div class="tech"><div class="tn">Harbor + Gitea <span class="tv">사내</span></div><p class="td">이미지 레지스트리와 진실의 소스(Git) 분리</p></div>
+        <div class="tech"><div class="tn">Cloudflare Tunnel <span class="tv">cloudflared</span></div><p class="td">외부 도메인 kopo13.kokailab.com을 traefik(443)으로 라우팅</p></div>
       </div></div>
     </div>
   </section>
@@ -260,6 +262,16 @@ footer code { font-family: var(--mono); color: var(--ink); }
         kubectl로 직접 고치면 그 변경은 <strong>언제든 Git에 의해 지워진다</strong> —
         GEMINI 키 env를 수동 주입했다가 Git과 어긋난 경험 때문에 매니페스트로 옮겼다.
         배포 이력 = 커밋 이력이라 롤백이 <code>git revert</code>다.</p>
+      </div>
+
+      <div class="card">
+        <h3>Cloudflare Tunnel 외부 공개 <span class="tag m">INGRESS</span></h3>
+        <p class="why">사내 와일드카드 DNS(<code>*.std.kopoctc.kr</code>) 밖에서는 접근할 수 없어
+        <code>kopo13.kokailab.com</code>을 <strong>cloudflared 터널</strong>(별도 서버)로 traefik 443에 연결했다.
+        호스트 클러스터의 Kyverno 정책이 <code>kopo13-&lt;앱&gt;.std.kopoctc.kr</code> 형식 외
+        Ingress host를 차단하므로, Ingress를 고치는 대신 터널의
+        <code>originRequest</code> 2줄(<code>noTLSVerify</code> + <code>httpHostHeader</code>)로
+        Host 헤더를 재작성해 기존 rule에 통과시킨다 — <strong>클러스터 매니페스트는 그대로</strong>.</p>
       </div>
 
     </div>
@@ -347,8 +359,8 @@ footer code { font-family: var(--mono); color: var(--ink); }
   </section>
 
   <footer>
-    <span>JobMarketRadar Tech Stack — <code>package.json</code> · <code>db/schema.sql</code> · <code>docs/step8-auth-worklog.md</code> 기준</span>
-    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code></span>
+    <span>JobMarketRadar Tech Stack — <code>package.json</code> · <code>db/schema.sql</code> · <code>docs/step8-auth-worklog.md</code> · <code>docs/connect_to_cloudflare.md</code> 기준</span>
+    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code> · 외부 <code>https://kopo13.kokailab.com</code></span>
   </footer>
 
 </div>

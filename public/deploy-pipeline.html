@@ -329,7 +329,7 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
 
   <!-- ═══════════ 헤더 ═══════════ -->
   <header class="masthead">
-    <div class="eyebrow">Deployment Pipeline · 2026-09-11 기준</div>
+    <div class="eyebrow">Deployment Pipeline · 2026-09-22 기준</div>
     <h1>JobMarketRadar 배포 파이프라인</h1>
     <p class="sub">로컬 소스에서 운영 URL까지 — <strong>이미지 경로</strong>와 <strong>매니페스트 경로</strong> 두 갈래가
     vcluster 안의 하나의 Pod에서 수렴하는 구조. ArgoCD가 Git을 단일 진실의 소스로 삼아 클러스터를 자동 수렴시킨다.</p>
@@ -338,6 +338,7 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
       <span class="pill"><span class="dot"></span>digest 일치 <code>5ce2421b…</code></span>
       <span class="pill"><span class="dot"></span>Git = <code>d17f7d4</code></span>
       <span class="pill"><span class="dot a"></span>수동 개입 3곳</span>
+      <span class="pill"><span class="dot"></span>외부 공개 <code>kopo13.kokailab.com</code></span>
     </div>
   </header>
 
@@ -470,7 +471,9 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
         <div class="node">
           <div class="node-top"><span class="node-name">Service + Ingress</span><span class="kind">traefik</span></div>
           <p class="node-body"><span class="tk">kopo13-jobradar.std.kopoctc.kr</span> → ClusterIP:3000<br>
-          readiness/liveness <span class="tk">GET /api/summary</span></p>
+          외부 <span class="tk">kopo13.kokailab.com</span> — Cloudflare Tunnel(별도 서버 cloudflared)이<br>
+          traefik 443으로 라우팅 · readiness/liveness <span class="tk">GET /api/summary</span></p>
+          <div class="chip-row"><span class="chip g">두 도메인 모두 동일 Pod — 배포 시 동시 반영</span></div>
         </div>
       </div>
     </div>
@@ -483,9 +486,9 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
       <div class="nodes c3">
         <div class="node violet">
           <div class="node-top"><span class="node-name">사용자 트래픽</span><span class="kind">in</span></div>
-          <p class="node-body">대시보드 · 이력서 관리 · 로그인 세션<br>
+          <p class="node-body">대시보드 · 이력서 관리 · <strong>로그인 기능</strong>(회원가입·로그인/로그아웃·내 정보)<br>
           미인증 API는 <span class="tk">401</span>로 차단 · 세션은 <span class="tk">5분 슬라이딩</span>+
-          <span class="tk">3분 하트비트</span> 연장</p>
+          <span class="tk">3분 하트비트</span> 연장 · scrypt 비밀번호 해시</p>
         </div>
         <div class="node violet">
           <div class="node-top"><span class="node-name">채용공고 수집</span><span class="kind">cron</span></div>
@@ -594,6 +597,13 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
         기능 브랜치에서 오래된 main 상태를 참고해 생긴 유입. <strong>main 병합 전
         <code>git diff main..develop -- deploy/</code>로 신규 매니페스트 유무를 확인</strong>한다.</p>
       </div>
+      <div class="mini">
+        <div class="mt"><span class="glyph r">KYVR</span>Ingress host는 Kyverno가 지킨다</div>
+        <p class="md">2026-09-22, 외부 도메인 host rule을 Ingress에 추가했더니 ingress-syncer가
+        <code>restrict-student-ingress-host</code> 정책에 거부돼 SyncError 반복 — traefik엔 영원히 반영되지 않았다.
+        <strong>외부 도메인은 Ingress 말고 cloudflared <code>originRequest</code>
+        (<code>noTLSVerify</code>+<code>httpHostHeader</code>)로 Host를 재작성</strong>해 해결(012466e→64ad3b8).</p>
+      </div>
     </div>
   </section>
 
@@ -615,14 +625,17 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
 <span class="c"># 4. 서비스 — 외부 URL이 살아있는가</span>
 <span class="p">$</span> curl -sk https://kopo13-jobradar.std.kopoctc.kr/api/summary | head -c 120
 
+<span class="c"># 5. Cloudflare Tunnel — 외부 도메인도 같은 Pod에 도달하는가</span>
+<span class="p">$</span> curl -s https://kopo13.kokailab.com/ -o /dev/null -w '%{http_code}\n'   <span class="c"># 200 기대</span>
+
 <span class="c"># 재배포 (매니페스트 변경 후 즉시 반영)</span>
 <span class="m">$</span> kubectl annotate application jobradar -n argocd argocd.argoproj.io/refresh=normal --overwrite</pre>
     </div>
   </section>
 
   <footer>
-    <span>JobMarketRadar · vcluster GitOps — <code>docs/step10-gitops-gitea-sync.md</code> 참조</span>
-    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code></span>
+    <span>JobMarketRadar · vcluster GitOps — <code>docs/step10-gitops-gitea-sync.md</code> · <code>docs/connect_to_cloudflare.md</code> 참조</span>
+    <span>운영 <code>https://kopo13-jobradar.std.kopoctc.kr</code> · 외부 <code>https://kopo13.kokailab.com</code></span>
   </footer>
 
 </div>
