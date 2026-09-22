@@ -13,10 +13,6 @@
 #       ├ /        → public/ 정적 파일 (대시보드 UI)
 #       └ /api/*   → 집계 API
 #
-#   외부 도메인: kopo13.kokailab.com → cloudflared(타 서버 Cloudflare Tunnel)
-#     → traefik(192.168.26.195:443) → 동일 경로로 라우팅.
-#     tunnel originRequest.noTLSVerify: true 필요 (traefik 기본 인증서 self-signed).
-#
 # ※ TLS(https) / http→https 리다이렉트: traefik 단에서 자동 처리 (기존 서비스와 동일).
 # ============================================================
 apiVersion: networking.k8s.io/v1
@@ -28,16 +24,6 @@ spec:
   ingressClassName: traefik
   rules:
     - host: kopo13-jobradar.std.kopoctc.kr   # 외부 접속 도메인 (와일드카드 자동 해석)
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: jobradar
-                port:
-                  number: 3000
-    - host: kopo13.kokailab.com              # 외부 공개 도메인 (Cloudflare Tunnel 경유)
       http:
         paths:
           - path: /
