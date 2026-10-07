@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ============================================================
+# 시크릿 유출 차단 pre-commit 훅
+# 설치: git config core.hooksPath .githooks   (1회, 저장소별)
+# 우회: git commit --no-verify   (진짜 오탐일 때만)
+# ============================================================
+set -uo pipefail
+
+fail=0
+
+# 1) 절대 스테이징되면 안 되는 파일명
+BLOCKED='(^|/)\.env$|^\.env\.(local|prod|dev|production|development)$|\.git-credentials$|(^|/)[^/]*\.(pem|p12|pfx|key)$|(^|/)id_rsa($|\.)|(^|/)\.npmrc$'
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+bad=$(echo "$staged" | grep -E "$BLOCKED" || true)
+if [ -n "$bad" ]; then
+  echo "✗ 커밋 금지 파일이 스테이징되어 있습니다:"
+  echo "$bad" | sed 's/^/    /'
+  fail=1
+fi
+
+# 2) 스테이징된 내용에서 실값 패턴 스캔 (템플릿/예시 파일 제외)
+SECRET_PATTERNS='sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|AIza[A-Za-z0-9_-]{35}|DHS_API_KEY[[:space:]]*[=:][[:space:]]*["'\'']?[A-Za-z0-9]{15,}|GEMINI_API_KEY[[:space:]]*[=:][[:space:]]*["'\'']?[A-Za-z0-9_-]{20,}|RELAY_API_KEY[[:space:]]*[=:][[:space:]]*["'\'']?[A-Za-z0-9_]{15,}|Bearer [A-Za-z0-9_.-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+# .env.example 등 템플릿은 검사 제외 — 실제 시크릿값이 채워진 .env 는 위에서 이미 차단됨
+files=$(echo "$staged" | grep -vE '\.env\.example$|/fixtures/|\.gitignore$|\.githooks/' || true)
+for f in $files; do
+  [ -f "$f" ] || continue
+  hits=$(git show ":$f" 2>/dev/null | grep -nE "$SECRET_PATTERNS" | head -5)
+  if [ -n "$hits" ]; then
+    echo "✗ $f 에서 시크릿으로 보이는 패턴이 검출되었습니다:"
+    echo "$hits" | sed "s|^|    $f:|"
+    fail=1
+  fi
+done
+
+if [ $fail -ne 0 ]; then
+  echo ""
+  echo "커밋을 중단합니다. 값이 오탐이면: git commit --no-verify"
+  echo "의심되는 값이 실제 키였다면: 즉시 발급 취소/재발급 후 새 값을 .env(비추적)에만 넣으세요."
+  exit 1
+fi
+exit 0
