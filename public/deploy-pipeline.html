@@ -329,14 +329,14 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
 
   <!-- ═══════════ 헤더 ═══════════ -->
   <header class="masthead">
-    <div class="eyebrow">Deployment Pipeline · 2026-09-22 기준</div>
+    <div class="eyebrow">Deployment Pipeline · 2026-10-07 기준</div>
     <h1>JobMarketRadar 배포 파이프라인</h1>
     <p class="sub">로컬 소스에서 운영 URL까지 — <strong>이미지 경로</strong>와 <strong>매니페스트 경로</strong> 두 갈래가
     vcluster 안의 하나의 Pod에서 수렴하는 구조. ArgoCD가 Git을 단일 진실의 소스로 삼아 클러스터를 자동 수렴시킨다.</p>
     <div class="status-row">
       <span class="pill"><span class="dot"></span>ArgoCD <code>Synced · Healthy</code></span>
       <span class="pill"><span class="dot"></span>digest 일치 <code>5ce2421b…</code></span>
-      <span class="pill"><span class="dot"></span>Git = <code>d17f7d4</code></span>
+      <span class="pill"><span class="dot"></span>Git = <code>1d64cbb</code> @ GitHub</span>
       <span class="pill"><span class="dot a"></span>수동 개입 3곳</span>
       <span class="pill"><span class="dot"></span>외부 공개 <code>kopo13.kokailab.com</code></span>
     </div>
@@ -397,14 +397,14 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
           <div class="track-head">매니페스트 경로</div>
           <div class="node amber">
             <div class="node-top"><span class="node-name">git push</span><span class="kind">manual</span></div>
-            <p class="node-body">비밀번호 로그인 불가 → ArgoCD repo secret의<br>
-            토큰(<span class="tk">write:repository</span>)으로 Basic 인증</p>
+            <p class="node-body">GitHub origin에 표준 push<br>
+            (credential helper <span class="tk">store</span> — 2026-10-07 Gitea에서 전환)</p>
           </div>
           <div class="node">
-            <div class="node-top"><span class="node-name">Gitea</span><span class="kind">git</span></div>
-            <p class="node-body"><span class="tk">std-gitea.kopoctc.kr/kopo13/web</span> · main<br>
-            54파일 — 앱 소스 + deploy/ + docs/</p>
-            <div class="chip-row"><span class="chip c">단일 진실의 소스</span></div>
+            <div class="node-top"><span class="node-name">GitHub</span><span class="kind">git</span></div>
+            <p class="node-body"><span class="tk">github.com/jaebin022035-crypto/jobmarketradar</span> · main + develop<br>
+            앱 소스 + deploy/ + docs/</p>
+            <div class="chip-row"><span class="chip c">단일 진실의 소스</span><span class="chip m">Gitea kopo13/web은 레거시</span></div>
           </div>
           <p class="track-note">ArgoCD가 보는 것은 이 중 <strong>deploy/ 경로뿐</strong>.
           앱 소스는 버전 관리용 — 배포 동작은 매니페스트가 지배한다.</p>
@@ -424,9 +424,10 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
       <div class="nodes c2">
         <div class="node">
           <div class="node-top"><span class="node-name">ArgoCD Application</span><span class="kind">jobradar</span></div>
-          <p class="node-body">Gitea main의 <span class="tk">deploy/</span> 감시 · 최대 3분 폴링<br>
+          <p class="node-body">GitHub main의 <span class="tk">deploy/</span> 감시 · 최대 3분 폴링<br>
           즉시 반영은 <span class="tk">refresh=normal</span> annotate</p>
           <div class="chip-row">
+            <span class="chip a">GitHub는 익명 fetch 거부 → repo secret 토큰 등록</span>
             <span class="chip c">automated</span>
             <span class="chip c">selfHeal — Git이 항상 승리</span>
             <span class="chip r">prune — Git에서 지우면 클러스터에서도 삭제</span>
@@ -524,7 +525,7 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
         <div class="ph"><span class="t">매니페스트를 바꿀 때</span><span class="chip c">수동 1단계</span></div>
         <div class="pb">
           <ul class="steps">
-            <li class="manual"><span class="s">1</span><span><strong>git push</strong> — 토큰 인증으로 Gitea main에</span></li>
+            <li class="manual"><span class="s">1</span><span><strong>git push origin main</strong> — GitHub로 표준 push</span></li>
             <li><span class="s">→</span><span>ArgoCD가 <strong>3분 내 자동 감지·적용</strong></span></li>
             <li><span class="s">→</span><span>드리프트 발견 시 <strong>selfHeal이 Git 상태로 복원</strong></span></li>
             <li><span class="s">＋</span><span>즉시 반영 원하면 refresh annotate (선택)</span></li>
@@ -540,10 +541,10 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
     <p class="sec-desc">자동화가 못 미치는 지점. 주황색으로 표시한 이유가 각각 있다.</p>
     <div class="grid2">
       <div class="mini">
-        <div class="mt"><span class="glyph a">PUSH</span>git push 인증</div>
-        <p class="md">Gitea 계정이 비밀번호 로그인 불가 상태. credential helper도 없어 일반 push는
-        프롬프트에서 무한 대기한다. ArgoCD repo secret(<code>repo-3176879643</code>)의 토큰을
-        Basic 헤더로 실어 보낸다.</p>
+        <div class="mt"><span class="glyph a">REPO</span>GitHub fetch 인증</div>
+        <p class="md">Git push 자체는 표준 credential helper로 간단해졌지만(2026-10-07 Gitea→GitHub 전환),
+        반대편이 새 수동이 됐다 — GitHub가 클래스터발 <strong>익명 fetch를 거부</strong>하므로
+        ArgoCD ns에 read-only repo secret(<code>repo-github-jobmarketradar</code>)을 등록해둬야 한다.</p>
       </div>
       <div class="mini">
         <div class="mt"><span class="glyph a">ROLL</span>rollout restart</div>
@@ -610,11 +611,11 @@ footer code { font-family: var(--mono); font-variant-numeric: tabular-nums; colo
   <!-- ═══════════ 검증 ═══════════ -->
   <section>
     <div class="sec-head"><span class="no">§</span><h2>배포 후 검증</h2></div>
-    <p class="sec-desc">네 고리가 모두 같은 것을 가리키는지 확인하는 순서 — 로컬 Git, Gitea, Harbor, 실행 Pod.</p>
+    <p class="sec-desc">네 고리가 모두 같은 것을 가리키는지 확인하는 순서 — 로컬 Git, GitHub, Harbor, 실행 Pod.</p>
     <div class="term">
       <div class="th"><span class="d"><i></i><i></i><i></i></span>pipeline-check</div>
-      <pre><span class="c"># 1. Git — 로컬 HEAD와 Gitea main이 같은가</span>
-<span class="p">$</span> git rev-parse HEAD &amp;&amp; git ls-remote https://std-gitea.kopoctc.kr/kopo13/web.git refs/heads/main
+      <pre><span class="c"># 1. Git — 로컬 HEAD와 GitHub main이 같은가</span>
+<span class="p">$</span> git rev-parse HEAD &amp;&amp; git ls-remote origin refs/heads/main
 
 <span class="c"># 2. ArgoCD — 최신 커밋에 Synced/Healthy인가</span>
 <span class="p">$</span> kubectl get application jobradar -n argocd
