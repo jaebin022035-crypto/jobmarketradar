@@ -3,8 +3,8 @@
 > 채용시장 트렌드 분석 웹 — 폴리텍대학교 인공지능응용소프트웨어 수료 포트폴리오
 > 작성일: 2026-07-07
 
-이 폴더는 `JobMarketRadar.md`(전체 계획서)를 **실행 가능한 단계별 가이드**로 쪼갠 문서 모음입니다.
-각 단계는 독립된 md 파일로 되어 있으며, **목표 → 해야 할 일 → 진행 순서 → 주의사항 → 완료 기준**의 동일한 구조로 작성되어 있습니다.
+이 폴더는 `JobMarketRadar.md`(전체 계획서)를 **단계별 문서**로 쪼갠 문서 모음입니다.
+단계별 설계·작업 로그(plan/worklog)는 단계 본문 1개 파일로 통합되어 있다 (step5·step6 통합 완료).
 
 ---
 
@@ -16,8 +16,8 @@
 | **2** | 수집기(collector) 구현 | 1일 | [step2-collector.md](./step2-collector.md) | 동작하는 배치 수집 스크립트 |
 | **3** | 백엔드 집계 API | 2일 | [step3-backend-api.md](./step3-backend-api.md) | Express + 집계 쿼리 API |
 | **4** | 프론트 대시보드 | 2~3일 | [step4-frontend-dashboard.md](./step4-frontend-dashboard.md) | 다크테마·반응형 대시보드 |
-| **5** | 연동·디테일 | 1일 | [step5-integration.md](./step5-integration.md) | 실데이터 연동 + 트렌드 요약 |
-| **6** | 인프라/배포 | 1.5일 | [step6-infra-deploy.md](./step6-infra-deploy.md) | Docker + Jenkins CI/CD |
+| **5** | 연동·필터 전면화·IT 선별 | 1일 | [step5-integration.md](./step5-integration.md) | 실데이터 end-to-end + 필터 연동 전면화 + IT 직군 토글 (5.5/5.6 통합) |
+| **6** | 인프라/배포 | 1.5일 | [step6-infra-deploy.md](./step6-infra-deploy.md) · [step6-views-plan.md](./step6-views-plan.md) | labport 실배포 검증 + Docker 산출물, 3뷰 구조 설계 |
 | **7** | 이력서 관리 (AI 자소서) | — | [step7-resume-design.md](./step7-resume-design.md) · [step7-resume-ai.md](./step7-resume-ai.md) · [step7-worklog.md](./step7-worklog.md) | 4번째 탭, Gemini 자소서 생성, 회사 맞춤 |
 | **8** | 로그인 시스템 (회원별 이력서 격리) | — | [step8-auth-plan.md](./step8-auth-plan.md) · [step8-auth-worklog.md](./step8-auth-worklog.md) | 회원가입/로그인, 이력서 접근 제어, 개인정보 격리 |
 | **9** | 채용공고 요구사항 매칭 자소서 | — | [step9-recruit-matching-plan.md](./step9-recruit-matching-plan.md) · [step9-recruit-matching-worklog.md](./step9-recruit-matching-worklog.md) | DB/URL/붙여넣기 4계층 소스, 모델 2단(3.5-flash-lite/flash), 근거 기반 매핑 |
@@ -87,8 +87,9 @@ JobMarketRader/
     ├── step2-collector.md            # 수집기 구현
     ├── step3-backend-api.md          # 백엔드 집계 API
     ├── step4-frontend-dashboard.md   # 프론트 대시보드
-    ├── step5-integration.md          # 연동·디테일
-    ├── step6-infra-deploy.md         # 인프라/배포
+    ├── step5-integration.md          # 연동·필터 전면화·IT 선별 (5.5/5.6 통합)
+    ├── step6-infra-deploy.md         # 인프라/배포 (실배포+Docker 산출물)
+    ├── step6-views-plan.md           # 3뷰 구조 설계 (대시보드/인사이트/맞춤공고)
     ├── step7-resume-*.md             # 이력서 관리 (AI 자소서) — design/ai/worklog
     ├── step8-auth-*.md               # 로그인 시스템 — plan(설계)/worklog(수행)
     ├── step9-recruit-matching-*.md  # 채용공고 요구사항 매칭 — plan/worklog

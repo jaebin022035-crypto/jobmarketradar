@@ -1,209 +1,72 @@
-# Step 6: 인프라/배포
+# Step 6: 인프라/배포 — 환경 제약과 두 배포 경로
 
-> **기간: 1.5일** · 이 단계의 목표: 앱을 Docker로 컨테이너화하고 Jenkins 파이프라인으로 배포 자동화(CI/CD)를 구축한다.
-
----
-
-## 📌 이 단계의 목표
-
-이 단계는 **"어디서든 동일하게 실행 + 배포 자동화"** 경험을 증명하는 단계다 (계획서 3·9절). `git push`만 하면 Jenkins가 빌드·테스트·배포까지 자동으로 처리하게 만든다. K8s/ArgoCD는 이번엔 제외하고 **Jenkins + Docker**로 단순화한다 (계획서 4.1, 9절 참고).
-
-완료하면:
-- ✅ `Dockerfile` (컨테이너 이미지)
-- ✅ `docker-compose.yml` (배포 실행 + 볼륨)
-- ✅ `Jenkinsfile` (CI/CD 파이프라인)
-- ✅ 서버에 배포되어 외부 접속 가능
-- ✅ SQLite 데이터가 배포 후에도 유지됨 (볼륨)
-- ✅ 배치 수집(cron)이 컨테이너 안에서 정상 동작
+> **작업일: 2026-07-21 검증 완료** · 목표: "어디서든 동일하게 실행 + 배포 자동화" 증명.
 
 ---
 
-## 📋 해야 할 일 (체크리스트)
+## 1. 결정: Docker 실배포 불가 → 두 경로 분리 (실패→복구 사례)
 
-- [ ] `Dockerfile` 작성 (Node + 앱)
-- [ ] `.dockerignore` 추가
-- [ ] `docker-compose.yml` (앱 + SQLite 볼륨)
-- [ ] 로컬에서 docker-compose로 동작 확인
-- [ ] **SQLite 볼륨 영속성 검증** (재기동 후 데이터 유지)
-- [ ] `Jenkinsfile` 작성 (Build → Test → Deploy)
-- [ ] Jenkins 잡 생성 + git webhook(또는 폴링)
-- [ ] `git push` → 자동 빌드·배포 확인
-- [ ] 컨테이너 안에서 cron 수집 정상 동작 확인
-- [ ] labport 외부 접속 주소로 최종 확인
+계획은 Docker + Jenkins CI/CD 실배포였으나, labport 환경 실측 결과:
+
+| 항목 | 상태 |
+|---|---|
+| Docker / podman | ❌ 미설치 (apt 후보만 있음) |
+| sudo | ❌ 없음 |
+| Node.js | ✅ v20 |
+
+→ 컨테이너를 직접 띄워 외부 공개하는 것은 불가능. **대체 결정:**
+- **실배포**: labport 표준 방식 — `start_server.sh`(Node 직접 실행) + Traefik 자동 외부 공개
+- **이식 배포**: Docker 산출물(Dockerfile/compose/Jenkinsfile)은 "어디서든 동일 실행 가능"을 증명하는 산출물로 작성. `docker compose up`은 이 환경에서 실행하지 않았고, 대신 **DB 경로·포트·env 3자 정합성 체크**로 품질 보증
+- Jenkins도 이 환경에 없어 자동배포는 별도 Docker/Jenkins 서버에서 (이후 Step 10에서 vcluster+ArgoCD GitOps로 실현)
 
 ---
 
-## 🚶 진행 순서 (단계별)
+## 2. 실배포 검증 결과 (2026-07-21)
 
-### 1. `Dockerfile` 작성
-
-가벼운 Node 이미지 기반:
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev        # 프로덕션 의존성만
-COPY . .
-EXPOSE 3000
-CMD ["node", "server.js"]
+```
+https://aisw-apps.kopoctc.kr/g/kopo13/JobMarketRader/
 ```
 
-### 2. `.dockerignore` 추가
+| 항목 | 결과 |
+|---|---|
+| 프로세스 | ✅ pid 15492, 0.0.0.0:12355 bind (Traefik이 `server.port` 감지해 자동 공개) |
+| `/api/summary` | ✅ `{"totalPostings":263,"totalRecruits":368,...}` (당시 백필 직후 수치) |
+| `/` 정적 서빙 | ✅ HTTP 200, 10.4KB |
+| DB 영속성 | ✅ `data/jobmarket.db` 925KB — 재기동 후 유지 (파일 기반) |
+| cron 자동수집 | ✅ `0 9,21 * * *` 등록 로그 확인 |
 
-이미지에 불필요한 파일 제외 (빌드 속도 + 보안):
-```
-node_modules
-.env
-*.db
-*.db-journal
-server.log
-server.pid
-server.port
-.git
-```
-> ⚠️ `.env`와 `.db`를 이미지에 넣으면 안 됨. `.env`는 런타임 주입, `.db`는 볼륨으로.
+---
 
-### 3. `docker-compose.yml` (가장 중요)
+## 3. Docker 산출물과 정합성
 
-```yaml
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - WORKNET_API_KEY=${WORKNET_API_KEY}   # 호스트 .env에서 주입
-    volumes:
-      - app-data:/app/data                    # SQLite 파일 영속화 ★
-    restart: unless-stopped
-volumes:
-  app-data:
-```
+| 파일 | 핵심 |
+|---|---|
+| `Dockerfile` | 멀티스테이지(build→runtime). `better-sqlite3` 네이티브 컴파일(python3/make/g++)을 build에 격리, 런타임엔 빌드 도구 제거로 가볍게. `TZ=Asia/Seoul` |
+| `.dockerignore` | `.env`, `*.db`, `data/`, `node_modules` 제외 — 시크릿/데이터 보호 |
+| `docker-compose.yml` | `./data:/app/data` SQLite 볼륨 영속화, `env_file`, `restart: unless-stopped`, healthcheck(`/api/summary`) |
+| `Jenkinsfile` | Build → Test(스모크) → Deploy(down→up), API키는 credentials 주입 |
 
-> 💡 **이 단계의 가장 큰 함정**: SQLite 파일 경로를 컨테이너 내부 경로(예: `/app/data/app.db`)로 잡고, 그 경로를 **볼륨에 마운트**해야 배포마다 데이터가 날아가지 않는다.
+**정합성 체크 (실제 코드와 일치 확인)**
+- DB 경로: `db.js`의 `data/jobmarket.db` ↔ compose 볼륨 `/app/data` ✅
+- 포트: server.js(3000) ↔ EXPOSE 3000 ↔ compose 3000:3000 ✅
+- env: `.env.example`(`DHS_API_KEY`/`PORT`/`CRON_SCHEDULE`) ↔ compose/Jenkinsfile ✅
 
-### 4. 로컬에서 docker-compose 동작 확인
-
+**Docker 환경으로 가져갔을 때 검증 절차**
 ```bash
 docker compose up --build
+curl -X POST http://localhost:3000/api/admin/collect   # 데이터 채우기
+docker compose down && docker compose up -d            # 재기동 후 데이터 0이면 볼륨 매핑 오류
 ```
-- 서버 기동 로그 확인
-- 브라우저에서 대시보드 표시 확인
-- API 응답 확인
-
-### 5. SQLite 볼륨 영속성 검증 (반드시)
-
-배포마다 데이터가 날아가는지 확인:
-```bash
-# 1) 수집으로 데이터 채우기 (POST /api/admin/collect 또는 직접)
-# 2) 컨테이너 재기동
-docker compose down && docker compose up -d
-# 3) 데이터가 그대로 있는지 확인
-```
-> ⚠️ 데이터가 0이 되면 볼륨 매핑이 잘못된 것. `db.js`의 DB 경로와 compose의 volume 경로가 **일치**해야 함.
-
-### 6. `Jenkinsfile` 작성 (CI/CD)
-
-계획서 9절의 파이프라인:
-```groovy
-pipeline {
-  agent any
-  stages {
-    stage('Build') {
-      steps {
-        sh 'docker compose build'
-      }
-    }
-    stage('Test') {
-      steps {
-        // 스모크 테스트: 핵심 API 응답 확인
-        sh 'curl -sf http://localhost:3000/api/summary'
-      }
-    }
-    stage('Deploy') {
-      steps {
-        sh 'docker compose down && docker compose up -d'
-      }
-    }
-  }
-}
-```
-
-**주요 단계 (계획서 9절):**
-- **Build** : Docker 이미지 생성
-- **Test** : `/api/summary` 등 핵심 엔드포인트 응답 확인 (스모크 테스트)
-- **Deploy** : `docker compose down/up` 으로 컨테이너 재기동
-
-### 7. Jenkins 잡 + 트리거
-
-- Jenkins에 새 Item(Pipeline) 생성
-- 소스: GitHub 레포, `develop`/`main` 브랜치
-- `Jenkinsfile` 경로 지정
-- 트리거: git push 감지(webhook) 또는 주기 폴링
-
-### 8. `git push` → 자동 배포 확인
-
-```bash
-git push origin develop
-# → Jenkins 감지 → Build → Test → Deploy
-# → 브라우저에서 변경사항 반영 확인
-```
-
-### 9. 컨테이너 안 cron 수집 확인
-
-수집기의 `node-cron`은 **서버 프로세스 안에서** 도는 것(계획서 3절). 컨테이너가 계속 떠 있으므로 cron도 동작한다.
-- 단기 cron(`*/5 * * * *`)으로 테스트 → 로그(`collection_logs`)에 실행 이력 쌓이는지 확인
-- 확인 후 실제 주기(예: 매일 새벽)로 되돌림
-
-### 10. labport 외부 접속 최종 확인
-
-```bash
-echo "외부 주소: https://aisw-lab.kopoctc.kr/g/$(basename "$HOME")/$(basename "$PWD")/"
-```
-외부 주소로 접속해 대시보드가 정상 동작하는지 최종 확인.
 
 ---
 
-## ⚠️ 주의사항
+## 4. 함정 체크리스트 (반영 완료)
 
-1. **💾 SQLite 볼륨 영속성 — 최우선** — 볼륨 매핑 없으면 `docker compose down`할 때마다 데이터 날아감. `db.js` 경로 ↔ compose volume 경로 일치 필수.
-2. **🔑 `.env` 주입 방식** — `.env`를 이미지에 넣지 말고 compose의 `environment:` 또는 `env_file:`로 런타임 주입.
-3. **🌐 포트/바인드** — 로컬 테스트는 호스트 포트 매핑. labport 실배포는 `start_server.sh` 규칙(`--bind 0.0.0.0`, 고유 포트) 따를 것.
-4. **🔁 cron은 서버 프로세스 안** — 별도 컨테이너가 아니라 `server.js` 시작 시 등록. 컨테이너가 죽으면 cron도 멈추므로 `restart: unless-stopped` 필수.
-5. **⏰ 컨테이너 시간대** — cron "새벽 3시"가 의도대로 가려면 컨테이너 TZ를 `Asia/Seoul`로 (기본은 UTC라 9시간 어긋남).
-6. **🧪 Test 단계는 가볍게** — 무거운 단위테스트 말고 핵심 API 응답 여부만(스모크). 배포 지연 방지.
-7. **🔐 Jenkins credentials** — Jenkins에 깃/서버 접근 권한은 credentials로 관리, 평문 노출 금지.
-8. **📦 이미지 크기** — `node:alpine` + `--omit=dev`로 가볍게.
-9. **🚫 K8s/ArgoCD는 이번 제외** — 일정 리스크. Jenkins+Docker까지만 (계획서 9절 권고).
+1. **SQLite 영속성(최우선)** — `db.js` 경로 ↔ 볼륨 경로 일치
+2. **`.env`는 이미지에 넣지 않음** — `env_file`/credentials 런타임 주입
+3. **cron은 서버 프로세스 안** — 컨테이너 재시작과 운명 공유, `restart: unless-stopped` 필수 (실운영에서 재기동으로 cron 끊긴 사례 → [collection-cycle.md](./collection-cycle.md))
+4. **TZ** — 컨테이너 기본 UTC라 cron 9시간 어긋남 → `TZ=Asia/Seoul`
+5. **Test 단계는 스모크만** — 무거운 단위테스트는 배포 지연 유발
+6. **K8s/ArgoCD는 이 단계에서 제외** — "일정 리스크"로 보류했다가 이후 vcluster 환경에서 도입 ([step10-gitops-gitea-sync.md](./step10-gitops-gitea-sync.md))
 
----
-
-## ✅ 완료 기준 (산출물)
-
-- [ ] `docker compose up` 으로 로컬에서 동작
-- [ ] 컨테이너 재기동 후 **SQLite 데이터 유지** 확인
-- [ ] `Jenkinsfile` 파이프라인 통과 (Build→Test→Deploy)
-- [ ] `git push` → 자동 배포 확인
-- [ ] 컨테이너 안에서 cron 수집 정상 동작
-- [ ] labport 외부 주소로 접속 시 대시보드 정상
-
----
-
-## 🎉 프로젝트 완료
-
-모든 단계(1~6)를 마치면 **공공데이터 배치 수집 → 집계 분석 → 대시보드 시각화 → CI/CD 배포** 까지 갖춘 완성형 데이터 분석 웹이 된다.
-
-취업용 어필 포인트(계획서 10절)를 README에 정리:
-1. 공공데이터 API 연동 + 배치 자동 수집
-2. GROUP BY 기반 데이터 집계/분석 설계
-3. Git + Jenkins CI/CD
-4. Docker 컨테이너화
-5. 실사용 시각화 대시보드
-6. 단계별 커밋 히스토리
-7. 아키텍처 도면 + 수집 스케줄 설명
-
----
-
-## 🔙 돌아가기
-
-**[← 전체 가이드 인덱스](./README.md)**
+> 3뷰 구조(대시보드/인사이트/맞춤공고) 설계: [step6-views-plan.md](./step6-views-plan.md)

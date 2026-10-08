@@ -317,7 +317,7 @@ collection_logs 는 배치가 정상 동작했는지 확인용 (운영/디버깅
 ### 13.5 Step 5.6: 버그 수정 + IT 직군 선별 (추가 구현)
 - **버그**: Step 5.5 도입 중 region API의 `drilldown` 변수 잔재로 ReferenceError →
   region/category 옵션이 안 채워지고 지역 차트가 안 그려지는 연쇄 장애. 잔재 1줄 제거로 해결.
-  (상세: `docs/step5.5-worklog.md` 2절)
+  (상세: `docs/step5-integration.md` 3절)
 - **IT 직군 선별**: `buildFilters`에 `itOnly` 옵션 + `IT_KEYWORDS` 키워드 매칭.
   프론트에 "IT·개발 직군만" 토글 추가 → 전체(246건) / IT만(30건) 전환.
-  (상세: `docs/step5.5-worklog.md` 3절)
+  (상세: `docs/step5-integration.md` 4절)
